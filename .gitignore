@@ -27,3 +27,6 @@ webui/node_modules/
 
 # 运行时遗留数据（cmd_config.json / t2i_templates 等，非源码）
 data/
+
+# VS Code 工作区文件由 IDE 生成，各人本地不同
+*.code-workspace
