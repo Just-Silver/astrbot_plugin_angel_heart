@@ -5,7 +5,6 @@
 本地临时路径（不带 file:/// 前缀），_load_image_bytes 需要能直接读取这类路径。
 """
 
-import asyncio
 import struct
 import tempfile
 from pathlib import Path
@@ -66,12 +65,16 @@ def temp_dir():
 
 @pytest.fixture
 def ledger(temp_dir):
-    config = type("MockConfig", (), {
-        "max_conversation_tokens": 5000,
-        "context_content_retain_tokens": 3000,
-        "context_tool_retain_tokens": 1000,
-        "enable_context_compression_for_chat_ids": [],
-    })()
+    config = type(
+        "MockConfig",
+        (),
+        {
+            "max_conversation_tokens": 5000,
+            "context_content_retain_tokens": 3000,
+            "context_tool_retain_tokens": 1000,
+            "enable_context_compression_for_chat_ids": [],
+        },
+    )()
     lg = ConversationLedger(config, temp_dir)
     yield lg
     lg.db_conn.close()

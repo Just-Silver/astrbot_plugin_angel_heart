@@ -59,7 +59,7 @@ def test_corrupted_file_falls_back_empty(tmp_path):
     assert store.list() == []
     store.record("default:GroupMessage:10001", True, "ok")
     assert store.get("default:GroupMessage:10001")["should_reply"] is True
-    with open(os.path.join(str(tmp_path), STORE_FILE_NAME), "r", encoding="utf-8") as f:
+    with open(os.path.join(str(tmp_path), STORE_FILE_NAME), encoding="utf-8") as f:
         data = json.load(f)
     assert data["decisions"]["default:GroupMessage:10001"]["should_reply"] is True
 

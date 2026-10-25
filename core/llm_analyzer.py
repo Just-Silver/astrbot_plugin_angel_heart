@@ -1,5 +1,4 @@
 import asyncio
-from typing import List, Dict
 import json
 import string
 
@@ -7,6 +6,7 @@ try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 from ..core.utils import JsonParser, format_message_for_llm
 from ..models.analysis_result import SecretaryDecision
@@ -139,18 +139,14 @@ class LLMAnalyzer:
         """
         # 3. 如果启用了提示词日志增强，则记录最终构建的完整提示词
         if False:  # prompt_logging_enabled 已废弃
-            logger.info(
-                f"[AngelHeart][{chat_id}]:最终构建的完整提示词 ----------------"
-            )
+            logger.info(f"[AngelHeart][{chat_id}]:最终构建的完整提示词 ----------------")
             logger.info(prompt)
             logger.info("----------------------------------------")
 
         # 动态获取 provider
         provider = self.context.get_provider_by_id(self.analyzer_model_name)
         if not provider:
-            logger.warning(
-                f"AngelHeart分析器: 未找到名为 '{self.analyzer_model_name}' 的分析模型提供商。"
-            )
+            logger.warning(f"AngelHeart分析器: 未找到名为 '{self.analyzer_model_name}' 的分析模型提供商。")
             raise Exception("未找到分析模型提供商")
 
         # 重试机制：最多重试1次，间隔3秒
@@ -165,9 +161,7 @@ class LLMAnalyzer:
                 response_text = token.completion_text.strip()
 
                 # 记录AI模型的完整响应内容
-                logger.debug(
-                    f"[AngelHeart][{chat_id}]: 轻量模型的分析推理 ----------------"
-                )
+                logger.debug(f"[AngelHeart][{chat_id}]: 轻量模型的分析推理 ----------------")
                 logger.debug(response_text)
                 logger.debug("----------------------------------------")
 
@@ -175,9 +169,7 @@ class LLMAnalyzer:
 
             except Exception as e:
                 if attempt < max_retries:
-                    logger.warning(
-                        f"AngelHeart分析器: 第{attempt + 1}次调用AI模型失败，{retry_delay}秒后重试: {e}"
-                    )
+                    logger.warning(f"AngelHeart分析器: 第{attempt + 1}次调用AI模型失败，{retry_delay}秒后重试: {e}")
                     await asyncio.sleep(retry_delay)
                 else:
                     logger.error(
@@ -188,8 +180,8 @@ class LLMAnalyzer:
 
     def _build_prompt(
         self,
-        historical_context: List[Dict],
-        recent_dialogue: List[Dict],
+        historical_context: list[dict],
+        recent_dialogue: list[dict],
         work_ledger_text: str = "",
         chat_id: str = "",
     ) -> str:
@@ -205,9 +197,7 @@ class LLMAnalyzer:
 
         # 增强检查：如果历史文本为空，则记录警告日志
         if not historical_text and not recent_text:
-            logger.warning(
-                "AngelHeart分析器: 格式化后的对话历史为空，将生成一个空的分析提示词。"
-            )
+            logger.warning("AngelHeart分析器: 格式化后的对话历史为空，将生成一个空的分析提示词。")
 
         # 按群聊解析配置（未绑定模板时回退全局配置）
         cm = self.config_manager.for_chat(chat_id) if self.config_manager else None
@@ -219,13 +209,9 @@ class LLMAnalyzer:
         base_prompt = self.base_prompt_template
         base_prompt = base_prompt.replace("{historical_context}", historical_text)
         base_prompt = base_prompt.replace("{recent_dialogue}", recent_text)
-        base_prompt = base_prompt.replace(
-            "{reply_strategy_guide}", cm.reply_strategy_guide if cm else ""
-        )
+        base_prompt = base_prompt.replace("{reply_strategy_guide}", cm.reply_strategy_guide if cm else "")
         base_prompt = base_prompt.replace("{alias}", alias)
-        base_prompt = base_prompt.replace(
-            "{ai_self_identity}", cm.ai_self_identity if cm else ""
-        )
+        base_prompt = base_prompt.replace("{ai_self_identity}", cm.ai_self_identity if cm else "")
 
         # 动态追加工作账本（第三人称）
         ledger_text = (work_ledger_text or "").strip()
@@ -240,8 +226,8 @@ class LLMAnalyzer:
 
     async def analyze_and_decide(
         self,
-        historical_context: List[Dict],
-        recent_dialogue: List[Dict],
+        historical_context: list[dict],
+        recent_dialogue: list[dict],
         chat_id: str,
         work_ledger_text: str = "",
     ) -> SecretaryDecision:
@@ -256,17 +242,13 @@ class LLMAnalyzer:
             logger.debug("AngelHeart分析器: 分析模型未配置, 跳过分析。")
             # 返回一个默认的不参与决策
             return SecretaryDecision(
-                should_reply=False, reply_strategy="未配置", topic="未知",
-                entities=[], facts=[], keywords=[]
+                should_reply=False, reply_strategy="未配置", topic="未知", entities=[], facts=[], keywords=[]
             )
 
         if not self.is_ready:
             logger.debug("AngelHeart分析器: 由于核心Prompt模板丢失，分析器已禁用。")
             return SecretaryDecision(
-                should_reply=False,
-                reply_strategy="分析器未就绪",
-                topic="未知",
-                entities=[], facts=[], keywords=[]
+                should_reply=False, reply_strategy="分析器未就绪", topic="未知", entities=[], facts=[], keywords=[]
             )
 
         # 1. 调用轻量级AI进行分析
@@ -280,14 +262,9 @@ class LLMAnalyzer:
 
         # 2. 增强检查：如果生成的提示词为空，则记录警告日志并返回一个明确的决策
         if not prompt:
-            logger.warning(
-                "AngelHeart分析器: 生成的分析提示词为空，将返回'分析内容为空'的决策。"
-            )
+            logger.warning("AngelHeart分析器: 生成的分析提示词为空，将返回'分析内容为空'的决策。")
             return SecretaryDecision(
-                should_reply=False,
-                reply_strategy="分析内容为空",
-                topic="未知",
-                entities=[], facts=[], keywords=[]
+                should_reply=False, reply_strategy="分析内容为空", topic="未知", entities=[], facts=[], keywords=[]
             )
 
         response_text = ""
@@ -296,9 +273,7 @@ class LLMAnalyzer:
             # 调用新方法解析和验证响应，并传递 alias
             return self._parse_response(response_text, alias, chat_id)
         except (json.JSONDecodeError, KeyError) as e:
-            logger.warning(
-                f"AngelHeart分析器: AI返回的JSON格式或内容有误: {e}. 原始响应: {response_text[:200]}..."
-            )
+            logger.warning(f"AngelHeart分析器: AI返回的JSON格式或内容有误: {e}. 原始响应: {response_text[:200]}...")
         except asyncio.CancelledError:
             # 重新抛出 CancelledError，以确保异步任务可以被正常取消
             raise
@@ -310,13 +285,10 @@ class LLMAnalyzer:
 
         # 如果发生任何错误，都返回一个默认的不参与决策
         return SecretaryDecision(
-            should_reply=False, reply_strategy="分析失败", topic="未知",
-            entities=[], facts=[], keywords=[]
+            should_reply=False, reply_strategy="分析失败", topic="未知", entities=[], facts=[], keywords=[]
         )
 
-    def _parse_and_validate_decision(
-        self, response_text: str, alias: str, chat_id: str = ""
-    ) -> SecretaryDecision:
+    def _parse_and_validate_decision(self, response_text: str, alias: str, chat_id: str = "") -> SecretaryDecision:
         """解析并验证来自AI的响应文本，构建SecretaryDecision对象"""
 
         # 仅将 should_reply 视为关键字段；其余字段缺失或类型错误时统一回退默认值
@@ -340,9 +312,7 @@ class LLMAnalyzer:
                 optional_fields=optional_fields,
             )
         except Exception as e:
-            logger.warning(
-                f"AngelHeart分析器: JsonParser提取JSON时发生异常: {e}. 原始响应: {response_text[:200]}..."
-            )
+            logger.warning(f"AngelHeart分析器: JsonParser提取JSON时发生异常: {e}. 原始响应: {response_text[:200]}...")
             decision_data = None
 
         # 如果JsonParser未能提取到有效的JSON
@@ -355,7 +325,9 @@ class LLMAnalyzer:
                 should_reply=False,
                 reply_strategy="分析内容无有效JSON",
                 topic="未知",
-                entities=[], facts=[], keywords=[]
+                entities=[],
+                facts=[],
+                keywords=[],
             )
 
         # 对来自 AI 的 JSON 做健壮性处理，防止字段为 null 或类型不符合导致 pydantic 校验失败
@@ -467,9 +439,7 @@ class LLMAnalyzer:
         if decision.should_reply and self.config_manager:
             cm = self.config_manager.for_chat(chat_id) if chat_id else None
             has_reason = (
-                decision.is_questioned
-                or decision.is_interesting
-                or bool(cm.reply_even_not_questioned if cm else False)
+                decision.is_questioned or decision.is_interesting or bool(cm.reply_even_not_questioned if cm else False)
             )
             if not has_reason:
                 logger.info(
@@ -480,7 +450,7 @@ class LLMAnalyzer:
 
         return decision
 
-    def _format_conversation_history(self, conversations: List[Dict], chat_id: str = "") -> str:
+    def _format_conversation_history(self, conversations: list[dict], chat_id: str = "") -> str:
         """
         格式化对话历史，生成统一的日志式格式。
 
@@ -510,9 +480,7 @@ class LLMAnalyzer:
             # 检查是否遇到分隔符
             if conv == SEPARATOR_OBJ:
                 lines.append("\n--- 以上是历史消息，仅作为策略参考，不需要回应 ---\n")
-                lines.append(
-                    "\n--- 后续的最新对话，你需要分辨出里面的人是不是在对你说话 ---\n"
-                )
+                lines.append("\n--- 后续的最新对话，你需要分辨出里面的人是不是在对你说话 ---\n")
                 continue  # 跳过分隔符本身，不添加到最终输出
 
             # 使用公共的工具函数格式化消息，确保使用统一的 XML 格式

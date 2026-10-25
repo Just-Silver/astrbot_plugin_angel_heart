@@ -6,8 +6,8 @@ AngelHeart 配置迁移模块
 """
 
 import json
-import os
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,7 @@ def _find_config_path() -> str | None:
     # 方式1：通过 AstrBot API 获取
     try:
         from astrbot.core.utils.astrbot_path import get_astrbot_config_path
+
         config_dir = get_astrbot_config_path()
         config_file = os.path.join(config_dir, f"{_PLUGIN_DIR_NAME}_config.json")
         if os.path.exists(config_file):
@@ -106,7 +107,7 @@ def _find_config_path() -> str | None:
     # 方式2：从插件目录往上推导 (data/plugins/plugin_name -> data/config/)
     plugin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     plugins_dir = os.path.dirname(plugin_dir)  # data/plugins/
-    data_dir = os.path.dirname(plugins_dir)    # data/
+    data_dir = os.path.dirname(plugins_dir)  # data/
     config_file = os.path.join(data_dir, "config", f"{_PLUGIN_DIR_NAME}_config.json")
     if os.path.exists(config_file):
         return config_file
@@ -140,18 +141,12 @@ def run_migration():
     needs_migration = any(key in config for key in _MIGRATION_MAP)
     has_deprecated_keys = any(key in config for key in _DEPRECATED_FLAT_KEYS)
     has_deprecated_grouped_keys = any(
-        isinstance(config.get(group_name), dict)
-        and any(sub_key in config[group_name] for sub_key in sub_keys)
+        isinstance(config.get(group_name), dict) and any(sub_key in config[group_name] for sub_key in sub_keys)
         for group_name, sub_keys in _DEPRECATED_GROUPED_KEYS.items()
     )
     # 旧 debug 分组整体改名 output_rewrite（调试模式已删除）
     has_debug_group = isinstance(config.get("debug"), dict)
-    if (
-        not needs_migration
-        and not has_deprecated_keys
-        and not has_deprecated_grouped_keys
-        and not has_debug_group
-    ):
+    if not needs_migration and not has_deprecated_keys and not has_deprecated_grouped_keys and not has_debug_group:
         return
 
     # 执行迁移
@@ -201,13 +196,8 @@ def run_migration():
             if not isinstance(output_group, dict):
                 output_group = {}
                 config["output_rewrite"] = output_group
-            if (
-                "strip_markdown_enabled" in debug_group
-                and "strip_markdown_enabled" not in output_group
-            ):
-                output_group["strip_markdown_enabled"] = debug_group[
-                    "strip_markdown_enabled"
-                ]
+            if "strip_markdown_enabled" in debug_group and "strip_markdown_enabled" not in output_group:
+                output_group["strip_markdown_enabled"] = debug_group["strip_markdown_enabled"]
                 migrated_count += 1
             if not output_group:
                 del config["output_rewrite"]
@@ -218,8 +208,7 @@ def run_migration():
             with open(config_path, "w", encoding="utf-8-sig") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
             logger.info(
-                f"AngelHeart: 配置迁移完成，{migrated_count} 项已迁移到分组结构，"
-                f"{removed_count} 项废弃配置已删除"
+                f"AngelHeart: 配置迁移完成，{migrated_count} 项已迁移到分组结构，{removed_count} 项废弃配置已删除"
             )
         except OSError as e:
             logger.warning(f"AngelHeart: 配置迁移写入失败: {e}")

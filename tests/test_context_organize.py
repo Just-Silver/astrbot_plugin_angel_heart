@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import types
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock
 
 import pytest
-
 from astrbot_plugin_angel_heart.core.config_manager import ConfigManager
 from astrbot_plugin_angel_heart.core.conversation_ledger import ConversationLedger
 
@@ -59,9 +56,7 @@ class TestGroupRuleOrganize:
         chat_id = "GroupMessage:1"
         for i in range(1, 12):
             ledger.add_message(chat_id, _msg(i, f"正文{i}" * 20, chat_id=chat_id))
-            ledger.add_message(
-                chat_id, _msg(100 + i, f"tool{i}", tool=True, chat_id=chat_id)
-            )
+            ledger.add_message(chat_id, _msg(100 + i, f"tool{i}", tool=True, chat_id=chat_id))
 
         # 未超时（forgetting_timeout=0 永不超时）→ 保留尾部工具
         ok = ledger.organize_context(chat_id, mode="group_rule")
@@ -76,7 +71,6 @@ class TestGroupRuleOrganize:
 
     def test_group_drops_tools_when_timeout(self, tmp_path):
         """超时：群聊整理才全清工具"""
-        from pathlib import Path
         import time
 
         cfg = DummyConfig()
@@ -88,9 +82,7 @@ class TestGroupRuleOrganize:
         chat_id = "GroupMessage:timeout1"
         now = time.time()
         for i in range(1, 6):
-            lg.add_message(
-                chat_id, _msg(i, f"old{i}", chat_id=chat_id, tool=False)
-            )
+            lg.add_message(chat_id, _msg(i, f"old{i}", chat_id=chat_id, tool=False))
             lg._ledgers[chat_id]["messages"][-1]["timestamp"] = now + i
         for i in range(100, 103):
             lg.add_message(chat_id, _msg(i, f"tool{i}", tool=True, chat_id=chat_id))
@@ -124,15 +116,9 @@ class TestGroupRuleOrganize:
         # 只有 3 条正文 + 若干 tool，触发 fallback
         for i in range(1, 4):
             ledger.add_message(chat_id, _msg(i, f"u{i}", chat_id=chat_id))
-            ledger.add_message(
-                chat_id, _msg(100 + i, f"tool{i}", tool=True, chat_id=chat_id)
-            )
-        ok = ledger.organize_context(chat_id, mode="group_rule")
-        msgs = [
-            m
-            for m in ledger.get_all_messages(chat_id)
-            if m.get("kind") != "context_summary"
-        ]
+            ledger.add_message(chat_id, _msg(100 + i, f"tool{i}", tool=True, chat_id=chat_id))
+        ledger.organize_context(chat_id, mode="group_rule")
+        msgs = [m for m in ledger.get_all_messages(chat_id) if m.get("kind") != "context_summary"]
         # 未超时：fallback 按 keep_tools=True 保留尾部工具
         assert any(m.get("role") == "tool" for m in msgs)
 
@@ -142,13 +128,9 @@ class TestPrivateLlmCompress:
     async def test_private_llm_summary_success(self, ledger):
         chat_id = "FriendMessage:9"
         for i in range(1, 20):
-            ledger.add_message(
-                chat_id, _msg(i, f"私聊内容{i}" * 30, chat_id=chat_id)
-            )
+            ledger.add_message(chat_id, _msg(i, f"私聊内容{i}" * 30, chat_id=chat_id))
             if i % 3 == 0:
-                ledger.add_message(
-                    chat_id, _msg(100 + i, f"tool{i}", tool=True, chat_id=chat_id)
-                )
+                ledger.add_message(chat_id, _msg(100 + i, f"tool{i}", tool=True, chat_id=chat_id))
 
         async def fake_llm(prompt: str) -> str:
             assert "私聊" in prompt or "摘要" in prompt or "待收口" in prompt
@@ -164,9 +146,7 @@ class TestPrivateLlmCompress:
     async def test_private_llm_failure_fallback(self, ledger):
         chat_id = "FriendMessage:10"
         for i in range(1, 20):
-            ledger.add_message(
-                chat_id, _msg(i, f"私聊内容{i}" * 30, chat_id=chat_id)
-            )
+            ledger.add_message(chat_id, _msg(i, f"私聊内容{i}" * 30, chat_id=chat_id))
 
         async def boom(prompt: str) -> str:
             raise RuntimeError("llm down")

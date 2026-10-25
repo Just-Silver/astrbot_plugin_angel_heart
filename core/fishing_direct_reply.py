@@ -5,12 +5,11 @@ AngelHeart 插件 - 离场应答策略生成模块
 由主脑统一生成回复内容，保持架构一致性。
 """
 
-
-
 try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 from ..models.analysis_result import SecretaryDecision
@@ -32,8 +31,6 @@ class FishingDirectReply:
         """
         self.config_manager = config_manager
         self.angel_context = angel_context
-
-
 
     async def generate_reply_strategy(self, chat_id: str, event, trigger_type: str) -> SecretaryDecision:
         """
@@ -63,18 +60,11 @@ class FishingDirectReply:
             # - 整理（_rule_organize）只从最新消息往前保留预算内消息，旧消息才收进摘要；
             # - 离场应答的边界消息 = 触发本轮防抖的最新消息，必在保留区内，不会被收掉。
             try:
-                boundary_message_id = self.angel_context.debounce_manager.get_end_message_id(
-                    event
-                )
+                boundary_message_id = self.angel_context.debounce_manager.get_end_message_id(event)
                 if not boundary_message_id:
-                    boundary_message_id = str(
-                        getattr(getattr(event, "message_obj", None), "message_id", "")
-                        or ""
-                    )
+                    boundary_message_id = str(getattr(getattr(event, "message_obj", None), "message_id", "") or "")
                 historical_context, recent_dialogue, boundary_ts = (
-                    self.angel_context.conversation_ledger.get_context_snapshot(
-                        chat_id, boundary_message_id
-                    )
+                    self.angel_context.conversation_ledger.get_context_snapshot(chat_id, boundary_message_id)
                 )
                 if hasattr(event, "set_extra"):
                     event.set_extra(
@@ -105,7 +95,7 @@ class FishingDirectReply:
                 reply_target="",
                 entities=[],  # 实体应由LLM从实际内容中提取，离场应答不预填
                 facts=[f"系统{strategy}"],  # 极简日志模式，不超过15字
-                keywords=[topic]  # 核心搜索词
+                keywords=[topic],  # 核心搜索词
             )
 
             logger.debug(f"AngelHeart[{chat_id}]: 生成策略: {strategy}")
@@ -121,5 +111,5 @@ class FishingDirectReply:
                 reply_target="",
                 entities=[],  # 实体应由LLM从实际内容中提取，离场应答不预填
                 facts=["系统简单回应"],  # 极简日志模式，不超过15字
-                keywords=["离场应答"]  # 核心搜索词
+                keywords=["离场应答"],  # 核心搜索词
             )

@@ -256,7 +256,8 @@ class ConfigManager:
     @property
     def ai_self_identity(self) -> str:
         return self._get_grouped(
-            "personality", "ai_self_identity",
+            "personality",
+            "ai_self_identity",
             "你拥有强大的检索能力和庞大的知识储备和记忆能力。\n你喜爱跟群友进行语言游戏沟通。\n群友对AI的善意测试你必须回应满足群友的期待，展示你的能力。",
         )
 

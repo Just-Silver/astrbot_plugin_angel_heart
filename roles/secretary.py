@@ -4,17 +4,18 @@ AngelHeart 插件 - 秘书角色 (Secretary)
 """
 
 import asyncio
-from typing import Dict, List
 
+from astrbot.api.event import AstrMessageEvent
+
+from ..core.angel_heart_status import AngelHeartStatus
 from ..core.llm_analyzer import LLMAnalyzer
 from ..models.analysis_result import SecretaryDecision
-from ..core.angel_heart_status import AngelHeartStatus
-from astrbot.api.event import AstrMessageEvent
 
 try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 
@@ -40,9 +41,7 @@ class Secretary:
         analyzer_model_name = self.config_manager.analyzer_model
         reply_strategy_guide = self.config_manager.reply_strategy_guide
         # 传递 context 对象，让 LLMAnalyzer 在需要时动态获取 provider
-        self.llm_analyzer = LLMAnalyzer(
-            analyzer_model_name, context, reply_strategy_guide, self.config_manager
-        )
+        self.llm_analyzer = LLMAnalyzer(analyzer_model_name, context, reply_strategy_guide, self.config_manager)
 
     async def handle_message_by_state(self, event: AstrMessageEvent) -> SecretaryDecision:
         """
@@ -70,19 +69,14 @@ class Secretary:
 
         boundary_message_id = self.angel_context.debounce_manager.get_end_message_id(event)
         if not boundary_message_id:
-            boundary_message_id = str(
-                getattr(getattr(event, "message_obj", None), "message_id", "") or ""
-            )
-        historical_context, recent_dialogue, boundary_ts = (
-            self.angel_context.conversation_ledger.get_context_snapshot(
-                chat_id, boundary_message_id
-            )
+            boundary_message_id = str(getattr(getattr(event, "message_obj", None), "message_id", "") or "")
+        historical_context, recent_dialogue, boundary_ts = self.angel_context.conversation_ledger.get_context_snapshot(
+            chat_id, boundary_message_id
         )
         if not recent_dialogue:
             logger.debug(f"AngelHeart[{chat_id}]: 无新消息需要分析。")
             return SecretaryDecision(
-                should_reply=False, reply_strategy="无新消息", topic="未知",
-                entities=[], facts=[], keywords=[]
+                should_reply=False, reply_strategy="无新消息", topic="未知", entities=[], facts=[], keywords=[]
             )
 
         # 钉死秘书判断点：主脑 rewrite 必须用同一份切片，禁止组请求时再全量扩窗
@@ -100,9 +94,7 @@ class Secretary:
         except Exception as e:
             logger.warning(f"AngelHeart[{chat_id}]: 固化决策上下文失败: {e}")
 
-        decision = await self.perform_analysis(
-            recent_dialogue, historical_context, chat_id, event=event
-        )
+        decision = await self.perform_analysis(recent_dialogue, historical_context, chat_id, event=event)
 
         # 点名巡检 / 助理防抖放行后必须回复；是否有理由不再影响门闩结果。
         if must_reply:
@@ -114,8 +106,8 @@ class Secretary:
 
     async def perform_analysis(
         self,
-        recent_dialogue: List[Dict],
-        db_history: List[Dict],
+        recent_dialogue: list[dict],
+        db_history: list[dict],
         chat_id: str,
         event: AstrMessageEvent | None = None,
     ) -> SecretaryDecision:
@@ -181,11 +173,8 @@ class Secretary:
         Returns:
             SecretaryDecision: 表示分析失败的决策对象
         """
-        logger.error(
-            f"AngelHeart[{chat_id}]: {context}出错: {error}", exc_info=True
-        )
+        logger.error(f"AngelHeart[{chat_id}]: {context}出错: {error}", exc_info=True)
         # 返回一个默认的不参与决策
         return SecretaryDecision(
-            should_reply=False, reply_strategy=f"{context}失败", topic="未知",
-            entities=[], facts=[], keywords=[]
+            should_reply=False, reply_strategy=f"{context}失败", topic="未知", entities=[], facts=[], keywords=[]
         )

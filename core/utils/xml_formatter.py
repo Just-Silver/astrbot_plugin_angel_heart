@@ -1,10 +1,10 @@
-﻿"""
+"""
 AngelHeart 插件 - 消息格式化工具
 负责将各种角色的消息转换为文本格式，并支持可选的 XML 包裹。
 """
 
-from .time_utils import format_relative_time, format_absolute_time
 from .content_utils import convert_content_to_string
+from .time_utils import format_absolute_time, format_relative_time
 
 
 def build_image_attachment_text(msg: dict) -> str:
@@ -16,9 +16,7 @@ def build_image_attachment_text(msg: dict) -> str:
     refs = []
     stored_refs = msg.get("image_refs", [])
     if isinstance(stored_refs, list):
-        refs.extend(
-            ref for ref in stored_refs if isinstance(ref, str) and ref.strip()
-        )
+        refs.extend(ref for ref in stored_refs if isinstance(ref, str) and ref.strip())
 
     content = msg.get("content", [])
     if isinstance(content, list):
@@ -49,14 +47,7 @@ def build_image_attachment_text(msg: dict) -> str:
 
     path_text = "\n".join(deduped_refs) if deduped_refs else "未知"
     caption_text = image_caption.strip()
-    return (
-        "<图片附件>\n"
-        "#图片路径#：\n"
-        f"{path_text}\n"
-        "#图片描述#：\n"
-        f"{caption_text}\n"
-        "</图片附件>"
-    )
+    return f"<图片附件>\n#图片路径#：\n{path_text}\n#图片描述#：\n{caption_text}\n</图片附件>"
 
 
 def format_message_to_text(
@@ -82,11 +73,7 @@ def format_message_to_text(
     text_content = convert_content_to_string(content)
     image_attachment_text = build_image_attachment_text(msg)
     if image_attachment_text:
-        text_content = (
-            f"{text_content}\n\n{image_attachment_text}"
-            if text_content
-            else image_attachment_text
-        )
+        text_content = f"{text_content}\n\n{image_attachment_text}" if text_content else image_attachment_text
 
     formatted_body = ""
 

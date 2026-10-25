@@ -34,9 +34,7 @@ def _serialize(records, historical_count=None):
 
     if historical_count is None:
         return json.loads(json_serialize_context(records, _decision()))
-    return json.loads(
-        json_serialize_context(records, _decision(), historical_count=historical_count)
-    )
+    return json.loads(json_serialize_context(records, _decision(), historical_count=historical_count))
 
 
 def test_snapshot_declares_historical_prefix_length():

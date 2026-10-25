@@ -5,17 +5,18 @@ AngelHeart 插件 - 上下文处理相关工具函数
 import copy
 import json
 import re
-from typing import List, Dict, TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from ..models.analysis_result import SecretaryDecision
     from ..conversation_ledger import ConversationLedger
+    from ..models.analysis_result import SecretaryDecision
 
 # 条件导入：当缺少astrbot依赖时使用Mock
 try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 
@@ -23,8 +24,8 @@ _GENERIC_IMAGE_PLACEHOLDER_RE = re.compile(r"(?:\s*\[图片\]\s*)+")
 
 
 def json_serialize_context(
-    chat_records: List[Dict],
-    decision: Union["SecretaryDecision", Dict],
+    chat_records: list[dict],
+    decision: Union["SecretaryDecision", dict],
     historical_count: int = 0,
 ) -> str:
     """
@@ -79,9 +80,7 @@ def json_serialize_context(
         return json.dumps(fallback_context, ensure_ascii=False)
 
 
-def _slice_messages_through_id(
-    messages: List[Dict], boundary_message_id: str
-) -> List[Dict]:
+def _slice_messages_through_id(messages: list[dict], boundary_message_id: str) -> list[dict]:
     """按消息 ID 包含式截断；找不到明确边界时拒绝扩窗。"""
     boundary_message_id = str(boundary_message_id or "")
     if not boundary_message_id:
@@ -94,19 +93,17 @@ def _slice_messages_through_id(
 
 
 def partition_dialogue(
-    ledger: 'ConversationLedger',
+    ledger: "ConversationLedger",
     chat_id: str,
     boundary_message_id: str = "",
-) -> Tuple[List[Dict], List[Dict], float]:
+) -> tuple[list[dict], list[dict], float]:
     """
     正式上下文切分（秘书轻量分析用）：
     - 当前摘要作为历史前缀
     - 当前连续消息块整体作为 recent（不再用 is_processed）
     - boundary 为块尾时间戳
     """
-    all_messages = _slice_messages_through_id(
-        ledger.get_all_messages(chat_id), boundary_message_id
-    )
+    all_messages = _slice_messages_through_id(ledger.get_all_messages(chat_id), boundary_message_id)
     summary = ""
     try:
         summary = ledger.get_current_summary(chat_id)
@@ -126,8 +123,7 @@ def partition_dialogue(
     historical_context = []
     if summary:
         has_summary_msg = any(
-            m.get("kind") in ("context_summary", "summary_context", "context_compaction")
-            for m in recent_dialogue[:1]
+            m.get("kind") in ("context_summary", "summary_context", "context_compaction") for m in recent_dialogue[:1]
         )
         if not has_summary_msg:
             ts = recent_dialogue[0].get("timestamp", 0) if recent_dialogue else 0
@@ -149,7 +145,7 @@ def partition_dialogue(
     return historical_context, recent_dialogue, boundary_ts
 
 
-def _compress_tool_message(msg: Dict) -> Union[Dict, None]:
+def _compress_tool_message(msg: dict) -> dict | None:
     """
     压缩或丢弃工具相关的消息，以便于秘书分析。
     - 丢弃工具调用消息。
@@ -179,7 +175,7 @@ def _compress_tool_message(msg: Dict) -> Union[Dict, None]:
     return msg
 
 
-def _generate_tool_description(tool_name: str, tool_args: Dict) -> str:
+def _generate_tool_description(tool_name: str, tool_args: dict) -> str:
     """
     生成工具调用的压缩描述。
     直接使用工具名，不进行任何智能处理。
@@ -196,10 +192,10 @@ def _generate_tool_description(tool_name: str, tool_args: Dict) -> str:
 
 
 def partition_dialogue_raw(
-    ledger: 'ConversationLedger',
+    ledger: "ConversationLedger",
     chat_id: str,
     boundary_message_id: str = "",
-) -> Tuple[List[Dict], List[Dict], float]:
+) -> tuple[list[dict], list[dict], float]:
     """
     正式上下文切分（主脑完整上下文）：
     - 当前摘要作为历史前缀
@@ -207,9 +203,7 @@ def partition_dialogue_raw(
     - 保留工具结构
     - 不再使用 is_processed
     """
-    all_messages = _slice_messages_through_id(
-        ledger.get_all_messages(chat_id), boundary_message_id
-    )
+    all_messages = _slice_messages_through_id(ledger.get_all_messages(chat_id), boundary_message_id)
     summary = ""
     try:
         summary = ledger.get_current_summary(chat_id)
@@ -222,8 +216,7 @@ def partition_dialogue_raw(
     historical_context = []
     if summary:
         has_summary_msg = any(
-            m.get("kind") in ("context_summary", "summary_context", "context_compaction")
-            for m in recent_dialogue[:1]
+            m.get("kind") in ("context_summary", "summary_context", "context_compaction") for m in recent_dialogue[:1]
         )
         if not has_summary_msg:
             ts = recent_dialogue[0].get("timestamp", 0) if recent_dialogue else 0
@@ -244,7 +237,7 @@ def partition_dialogue_raw(
     return historical_context, recent_dialogue, boundary_ts
 
 
-def format_decision_xml(decision: 'SecretaryDecision') -> str:
+def format_decision_xml(decision: "SecretaryDecision") -> str:
     """
     生成系统决策 XML 字符串。
 
@@ -269,8 +262,8 @@ def format_decision_xml(decision: 'SecretaryDecision') -> str:
 
 
 def format_final_prompt(
-    recent_dialogue: List[Dict],
-    decision: 'SecretaryDecision',
+    recent_dialogue: list[dict],
+    decision: "SecretaryDecision",
     alias: str = "AngelHeart",
     use_absolute_time: bool = True,
 ) -> str:
@@ -283,18 +276,13 @@ def format_final_prompt(
 
     # 将需要回应的新对话格式化为文本字符串
     dialogue_str = "\n".join(
-        [
-            format_message_to_text(
-                msg, alias, use_relative_time=not use_absolute_time
-            )
-            for msg in marked_dialogue
-        ]
+        [format_message_to_text(msg, alias, use_relative_time=not use_absolute_time) for msg in marked_dialogue]
     )
 
     return dialogue_str
 
 
-def _with_current_round_image_markers(messages: List[Dict]) -> List[Dict]:
+def _with_current_round_image_markers(messages: list[dict]) -> list[dict]:
     """为当前轮 prompt 注入跨消息递增的图片锚点。"""
     marked_messages = []
     image_index = 1
@@ -312,15 +300,11 @@ def _with_current_round_image_markers(messages: List[Dict]) -> List[Dict]:
     return marked_messages
 
 
-def _count_prompt_images(msg: Dict) -> int:
+def _count_prompt_images(msg: dict) -> int:
     """统计当前 prompt 中需要编号的图片数量。"""
     content = msg.get("content")
     if isinstance(content, list):
-        count = sum(
-            1
-            for item in content
-            if isinstance(item, dict) and item.get("type") == "image_url"
-        )
+        count = sum(1 for item in content if isinstance(item, dict) and item.get("type") == "image_url")
         if count:
             return count
 
@@ -331,24 +315,18 @@ def _count_prompt_images(msg: Dict) -> int:
     return 0
 
 
-def _append_image_markers(msg: Dict, markers: List[str]) -> Dict:
+def _append_image_markers(msg: dict, markers: list[str]) -> dict:
     """返回一条带图片编号文本锚点的消息副本。"""
     marked_msg = copy.deepcopy(msg)
     marker_text = " ".join(markers)
     content = marked_msg.get("content")
 
     if isinstance(content, list):
-        text_items = [
-            item
-            for item in content
-            if isinstance(item, dict) and item.get("type") == "text"
-        ]
+        text_items = [item for item in content if isinstance(item, dict) and item.get("type") == "text"]
         for item in text_items:
             item["text"] = _strip_generic_image_placeholders(item.get("text", ""))
 
-        non_empty_text_items = [
-            item for item in text_items if str(item.get("text", "")).strip()
-        ]
+        non_empty_text_items = [item for item in text_items if str(item.get("text", "")).strip()]
         if non_empty_text_items:
             last_text_item = non_empty_text_items[-1]
             text = str(last_text_item.get("text", "")).rstrip()

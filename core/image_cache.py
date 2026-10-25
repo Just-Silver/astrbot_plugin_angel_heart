@@ -8,11 +8,10 @@ ImageCache - 插件自有图片缓存
 清理时机由 ConversationLedger 在消息截断/压缩时联动调用。
 """
 
-import io
 import hashlib
+import io
 import re
 from pathlib import Path
-from typing import Optional
 
 from PIL import Image
 
@@ -20,6 +19,7 @@ try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 
@@ -63,7 +63,7 @@ class ImageCache:
     # ── 转换 ──────────────────────────────────────
 
     @staticmethod
-    def _convert_to_webp(image_data: bytes, quality: int = WEBP_QUALITY, max_side: int = MAX_SIDE) -> Optional[bytes]:
+    def _convert_to_webp(image_data: bytes, quality: int = WEBP_QUALITY, max_side: int = MAX_SIDE) -> bytes | None:
         """将图片字节转为 WebP quality=75，最长边不超过 max_side。"""
         try:
             img = Image.open(io.BytesIO(image_data))
@@ -122,7 +122,7 @@ class ImageCache:
         """返回缓存文件路径，不论文件是否存在。"""
         return self._file_path(chat_id, dhash)
 
-    def get_cached(self, chat_id: str, dhash: str) -> Optional[bytes]:
+    def get_cached(self, chat_id: str, dhash: str) -> bytes | None:
         """读取已缓存的 WebP 字节，不存在返回 None。"""
         path = self._file_path(chat_id, dhash)
         if path.exists():
@@ -132,7 +132,7 @@ class ImageCache:
                 logger.warning(f"读取缓存图片失败: {e}")
         return None
 
-    def put(self, chat_id: str, image_data: bytes) -> Optional[str]:
+    def put(self, chat_id: str, image_data: bytes) -> str | None:
         """将图片字节缓存为 WebP q75 max1024，返回 dhash（也是文件名）。"""
         webp_bytes = self._convert_to_webp(image_data)
         if webp_bytes is None:
@@ -161,7 +161,7 @@ class ImageCache:
         source_path: str | Path,
         display_name: str = "",
         max_bytes: int = MAX_TEXT_FILE_BYTES,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """把小文本附件复制到插件缓存目录，返回稳定路径。"""
         try:
             src = Path(source_path)
@@ -223,6 +223,7 @@ class ImageCache:
         if d.exists():
             try:
                 import shutil
+
                 shutil.rmtree(d)
                 logger.debug(f"ImageCache: 已清理会话 {chat_id} 的图片缓存")
             except Exception as e:
@@ -233,6 +234,7 @@ class ImageCache:
         if self._root.exists():
             try:
                 import shutil
+
                 shutil.rmtree(self._root)
                 self._root.mkdir(parents=True, exist_ok=True)
                 logger.debug("ImageCache: 已清理所有图片缓存")

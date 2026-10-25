@@ -3,8 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from astrbot_plugin_angel_heart.roles.front_desk import FrontDesk
 from astrbot_plugin_angel_heart.core.work_ledger import WorkLedger
+from astrbot_plugin_angel_heart.roles.front_desk import FrontDesk
 
 
 def _front_desk():
@@ -218,14 +218,13 @@ def test_group_rewrite_uses_focus_reply_length_when_focus_instruction_hits():
 
     asyncio.run(_run_group_rewrite(fd, event, req, recent_dialogue, historical_context=[]))
 
-    length_context = next(
-        message
-        for message in req.contexts
-        if message.get("sender_id") == "angelheart-reply-length"
-    )
+    length_context = next(message for message in req.contexts if message.get("sender_id") == "angelheart-reply-length")
     assert length_context["angelheart_focus"] is True
     assert "请认真回答：先给结论，再给必要依据，长度以 200 字左右为宜。" in length_context["content"][0]["text"]
-    assert "如果是分析的，不要正反面讲解，直接给出你认为的最佳结论，只给出必要的关键推理。" in length_context["content"][0]["text"]
+    assert (
+        "如果是分析的，不要正反面讲解，直接给出你认为的最佳结论，只给出必要的关键推理。"
+        in length_context["content"][0]["text"]
+    )
 
 
 def test_private_rewrite_does_not_inject_reply_length_reminder():
@@ -266,9 +265,7 @@ def test_private_rewrite_does_not_inject_reply_length_reminder():
 
     asyncio.run(_run())
 
-    assert all(
-        message.get("sender_id") != "angelheart-reply-length" for message in req.contexts
-    )
+    assert all(message.get("sender_id") != "angelheart-reply-length" for message in req.contexts)
     assert "回复尽量简短" not in req.prompt
     assert "长度以" not in req.prompt
 
@@ -316,6 +313,9 @@ def test_group_rewrite_replaces_current_astrbot_image_attachment_path_with_ledge
 
     assert req.image_urls == []
     assert req.extra_user_content_parts[0].text == f"[Image Attachment: path {cache_path}]"
-    assert req.extra_user_content_parts[1].text == "[Image Attachment in quoted message: path /AstrBot/data/temp/quoted.jpg]"
+    assert (
+        req.extra_user_content_parts[1].text
+        == "[Image Attachment in quoted message: path /AstrBot/data/temp/quoted.jpg]"
+    )
     assert cache_path not in req.prompt
     assert "[图片1]" in req.prompt

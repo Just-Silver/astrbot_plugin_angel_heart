@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 try:
     from astrbot.api import logger
@@ -56,7 +56,7 @@ class DebounceRecord:
     delay: float
     leave_reply_trigger: str = ""
     created_at: float = field(default_factory=time.time)
-    timer: Optional[asyncio.Task] = None
+    timer: asyncio.Task | None = None
 
 
 class DebounceManager:
@@ -66,12 +66,12 @@ class DebounceManager:
         self.config_manager = config_manager
         self.work_ledger = work_ledger
         self._lock = asyncio.Lock()
-        self._assistant: Dict[Tuple[str, str], DebounceRecord] = {}
-        self._secretary: Dict[str, DebounceRecord] = {}
+        self._assistant: dict[tuple[str, str], DebounceRecord] = {}
+        self._secretary: dict[str, DebounceRecord] = {}
         # 会话级秘书调度门闩：只覆盖秘书判断阶段。
-        self._secretary_dispatching: Dict[str, str] = {}
-        self._assistant_rest_until: Dict[str, float] = {}
-        self.energy_states: Dict[str, ChatEnergyState] = {}
+        self._secretary_dispatching: dict[str, str] = {}
+        self._assistant_rest_until: dict[str, float] = {}
+        self.energy_states: dict[str, ChatEnergyState] = {}
         self._version_seq = 0
 
     def _next_version(self) -> int:
@@ -119,9 +119,7 @@ class DebounceManager:
 
     def _base_reply_energy_cost(self, chat_id: str) -> float:
         cm = self.config_manager.for_chat(chat_id)
-        return float(
-            getattr(cm, "base_reply_cost", BASE_REPLY_ENERGY_COST)
-        )
+        return float(getattr(cm, "base_reply_cost", BASE_REPLY_ENERGY_COST))
 
     def _reply_energy_cost_per_character(self, chat_id: str) -> float:
         cm = self.config_manager.for_chat(chat_id)
@@ -264,7 +262,7 @@ class DebounceManager:
         """
         return str(chat_id or "") in self._secretary_dispatching
 
-    async def patrol_snapshot(self, chat_id: str) -> Dict[str, Any]:
+    async def patrol_snapshot(self, chat_id: str) -> dict[str, Any]:
         """返回该会话当前的巡检/等待快照，供 WebUI 状态栏展示。
 
         返回：
@@ -322,8 +320,7 @@ class DebounceManager:
             return False
         try:
             return any(
-                getattr(work, "status", "") == "running"
-                and getattr(work, "kind", "") in ("assistant", "secretary")
+                getattr(work, "status", "") == "running" and getattr(work, "kind", "") in ("assistant", "secretary")
                 for work in self.work_ledger.get_active_works(chat_id)
             )
         except Exception:
@@ -390,8 +387,7 @@ class DebounceManager:
         async with self._lock:
             self._assistant_rest_until[chat_id] = time.time() + rest_seconds
             logger.debug(
-                f"AngelHeart[{chat_id}]: 启动助理休息 "
-                f"(reason={reason or 'unknown'}, rest={rest_seconds:.2f}s)"
+                f"AngelHeart[{chat_id}]: 启动助理休息 (reason={reason or 'unknown'}, rest={rest_seconds:.2f}s)"
             )
             return True
 
@@ -434,7 +430,7 @@ class DebounceManager:
         is_wake: bool,
         is_present: bool,
         leave_reply_trigger: str = "",
-    ) -> Optional[asyncio.Future]:
+    ) -> asyncio.Future | None:
         """根据规则创建/更新防抖。
 
         Returns:
@@ -470,7 +466,7 @@ class DebounceManager:
         sender_id: str,
         message_id: str,
         is_present: bool,
-    ) -> Optional[asyncio.Future]:
+    ) -> asyncio.Future | None:
         key = (chat_id, sender_id)
         existing_assistant = self._assistant.get(key)
         if existing_assistant:
@@ -529,7 +525,7 @@ class DebounceManager:
         message_id: str,
         is_present: bool,
         leave_reply_trigger: str,
-    ) -> Optional[asyncio.Future]:
+    ) -> asyncio.Future | None:
         key = (chat_id, sender_id)
         existing_assistant = self._assistant.get(key)
         if existing_assistant:
@@ -551,16 +547,12 @@ class DebounceManager:
 
         if self.has_assistant_debounce(chat_id):
             # 有其他群友的助理防抖时，不发起秘书防抖
-            logger.debug(
-                f"AngelHeart[{chat_id}]: 已有助理防抖，非唤醒消息仅入库 (sender={sender_id})"
-            )
+            logger.debug(f"AngelHeart[{chat_id}]: 已有助理防抖，非唤醒消息仅入库 (sender={sender_id})")
             return None
 
         if not is_present:
             if not leave_reply_trigger:
-                logger.debug(
-                    f"AngelHeart[{chat_id}]: 离场未唤醒，仅入库 (sender={sender_id})"
-                )
+                logger.debug(f"AngelHeart[{chat_id}]: 离场未唤醒，仅入库 (sender={sender_id})")
                 return None
 
             existing_secretary = self._secretary.get(chat_id)
@@ -747,16 +739,12 @@ class DebounceManager:
                 if self._secretary_dispatching.get(record.chat_id):
                     # 同会话已有秘书正在分析，不并发放行第二轮秘书。
                     # 助理生成/发送不占此门闩。
-                    self._log_gate_decision(
-                        record, "retry", "secretary_dispatching"
-                    )
+                    self._log_gate_decision(record, "retry", "secretary_dispatching")
                     self._reset_record_after_gate(record, "secretary_dispatching")
                     return
 
                 if self._has_running_assistant_work(record.chat_id):
-                    self._log_gate_decision(
-                        record, "retry", "assistant_busy"
-                    )
+                    self._log_gate_decision(record, "retry", "assistant_busy")
                     self._reset_record_after_gate(record, "assistant_busy")
                     return
 
@@ -801,19 +789,11 @@ class DebounceManager:
                         if hasattr(record.event, "set_extra"):
                             record.event.set_extra("angelheart_must_reply", record.must_reply)
                             record.event.set_extra("angelheart_debounce_kind", record.kind)
-                            record.event.set_extra(
-                                "angelheart_debounce_start_message_id", record.start_message_id
-                            )
-                            record.event.set_extra(
-                                "angelheart_debounce_end_message_id", record.end_message_id
-                            )
+                            record.event.set_extra("angelheart_debounce_start_message_id", record.start_message_id)
+                            record.event.set_extra("angelheart_debounce_end_message_id", record.end_message_id)
                             record.event.set_extra("angelheart_secretary_dispatch_id", dispatch_id)
-                            record.event.set_extra(
-                                "angelheart_leave_reply_trigger", record.leave_reply_trigger
-                            )
-                            record.event.set_extra(
-                                "angelheart_energy_charge_eligible", True
-                            )
+                            record.event.set_extra("angelheart_leave_reply_trigger", record.leave_reply_trigger)
+                            record.event.set_extra("angelheart_energy_charge_eligible", True)
                     except Exception:
                         pass
                     mode = self._record_mode(record)
@@ -849,7 +829,7 @@ class DebounceManager:
             if record.future and not record.future.done():
                 record.future.set_result(KILL)
 
-    def _get_current_record(self, record: DebounceRecord) -> Optional[DebounceRecord]:
+    def _get_current_record(self, record: DebounceRecord) -> DebounceRecord | None:
         if record.kind == "assistant":
             return self._assistant.get((record.chat_id, record.sender_id))
         return self._secretary.get(record.chat_id)
@@ -892,9 +872,7 @@ class DebounceManager:
     def get_start_message_id(self, event: Any) -> str:
         try:
             if hasattr(event, "get_extra"):
-                return str(
-                    event.get_extra("angelheart_debounce_start_message_id", "") or ""
-                )
+                return str(event.get_extra("angelheart_debounce_start_message_id", "") or "")
         except Exception:
             pass
         return ""
@@ -902,9 +880,7 @@ class DebounceManager:
     def get_end_message_id(self, event: Any) -> str:
         try:
             if hasattr(event, "get_extra"):
-                return str(
-                    event.get_extra("angelheart_debounce_end_message_id", "") or ""
-                )
+                return str(event.get_extra("angelheart_debounce_end_message_id", "") or "")
         except Exception:
             pass
         return ""

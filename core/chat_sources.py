@@ -10,7 +10,7 @@ import json
 import os
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 STORE_FILE_NAME = "chat_sources.json"
 
@@ -22,7 +22,7 @@ class ChatSourcesStore:
         self._data_dir = data_dir
         self._file_path = os.path.join(data_dir, STORE_FILE_NAME)
         self._lock = threading.Lock()
-        self._sources: Dict[str, Dict[str, Any]] = {}
+        self._sources: dict[str, dict[str, Any]] = {}
         self._loaded = False
 
     # ---------- 持久化 ----------
@@ -30,10 +30,10 @@ class ChatSourcesStore:
     def _ensure_loaded(self) -> None:
         if self._loaded:
             return
-        data: Dict = {}
+        data: dict = {}
         if os.path.isfile(self._file_path):
             try:
-                with open(self._file_path, "r", encoding="utf-8") as f:
+                with open(self._file_path, encoding="utf-8") as f:
                     data = json.load(f)
             except (json.JSONDecodeError, OSError, TypeError):
                 data = {}
@@ -41,9 +41,7 @@ class ChatSourcesStore:
             data = {}
         sources = data.get("sources", {})
         if isinstance(sources, dict):
-            self._sources = {
-                str(k): v for k, v in sources.items() if isinstance(v, dict)
-            }
+            self._sources = {str(k): v for k, v in sources.items() if isinstance(v, dict)}
         self._loaded = True
 
     def save(self) -> None:
@@ -82,7 +80,7 @@ class ChatSourcesStore:
                 entry["last_seen"] = now
             self.save()
 
-    def list_sources(self) -> List[Dict[str, Any]]:
+    def list_sources(self) -> list[dict[str, Any]]:
         with self._lock:
             self._ensure_loaded()
             return [
@@ -100,7 +98,7 @@ class ChatSourcesStore:
                 )
             ]
 
-    def get_display_name(self, chat_id: str) -> Optional[str]:
+    def get_display_name(self, chat_id: str) -> str | None:
         with self._lock:
             self._ensure_loaded()
             entry = self._sources.get(str(chat_id))
@@ -108,7 +106,7 @@ class ChatSourcesStore:
                 return entry.get("display_name") or None
             return None
 
-    def get_source(self, chat_id: str) -> Optional[Dict[str, Any]]:
+    def get_source(self, chat_id: str) -> dict[str, Any] | None:
         """返回单个来源完整登记；不存在时返回 None。"""
         with self._lock:
             self._ensure_loaded()

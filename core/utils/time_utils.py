@@ -3,13 +3,14 @@ AngelHeart 插件 - 时间相关工具函数
 """
 
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 # 条件导入：当缺少astrbot依赖时使用Mock
 try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 # 定义默认时间戳回退时间（1小时），用于当消息没有时间戳时提供一个基准时间
@@ -40,9 +41,7 @@ def get_latest_message_time(messages: list[dict]) -> float:
     # 如果所有消息都没有时间戳，使用当前时间作为基准
     if latest_time == 0.0:
         fallback_time = time.time() - DEFAULT_TIMESTAMP_FALLBACK_SECONDS
-        logger.debug(
-            f"AngelHeart: 消息时间戳回退到默认值 {fallback_time} ({DEFAULT_TIMESTAMP_FALLBACK_SECONDS}秒前)"
-        )
+        logger.debug(f"AngelHeart: 消息时间戳回退到默认值 {fallback_time} ({DEFAULT_TIMESTAMP_FALLBACK_SECONDS}秒前)")
         return fallback_time
 
     return latest_time

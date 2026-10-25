@@ -4,9 +4,9 @@ import types
 from unittest.mock import MagicMock
 
 import pytest
+from astrbot_plugin_angel_heart.roles.front_desk import FrontDesk
 
 from core.chat_sources import ChatSourcesStore
-from astrbot_plugin_angel_heart.roles.front_desk import FrontDesk
 
 
 class SourceEvent:

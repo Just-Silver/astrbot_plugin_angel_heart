@@ -4,20 +4,20 @@ AngelHeart 插件 - 全局上下文管理器
 """
 
 import time
-import asyncio
-from typing import Dict, Optional, Any
 
 try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 from astrbot.core.star.context import Context
-from ..core.conversation_ledger import ConversationLedger
+
 from ..core.angel_heart_status import AngelHeartStatus, StatusTransitionManager
-from ..core.proactive_manager import ProactiveManager
+from ..core.conversation_ledger import ConversationLedger
 from ..core.debounce_manager import DebounceManager
+from ..core.proactive_manager import ProactiveManager
 from ..core.work_ledger import WorkLedger
 
 
@@ -38,25 +38,23 @@ class AngelHeartContext:
 
         # 核心资源：对话总账
         self.conversation_ledger = ConversationLedger(
-            config_manager=config_manager,
-            data_dir=data_dir,
-            astr_context=astr_context
+            config_manager=config_manager, data_dir=data_dir, astr_context=astr_context
         )
 
         # 调度：群聊双防抖；旧单槽门锁已退役
         # （processing_chats / acquire_chat_processing 已删除）
 
         # 时序控制
-        self.last_analysis_time: Dict[str, float] = {}  # chat_id -> 上次分析时间
-        self.silenced_until: Dict[str, float] = {}  # chat_id -> 闭嘴结束时间
+        self.last_analysis_time: dict[str, float] = {}  # chat_id -> 上次分析时间
+        self.silenced_until: dict[str, float] = {}  # chat_id -> 闭嘴结束时间
 
         # 离场应答冷却：一次性回复后，短时间内不再因复读或密集聊天触发回复。
-        self.leave_reply_cooldown_until: Dict[str, float] = {}
+        self.leave_reply_cooldown_until: dict[str, float] = {}
 
         # ========== 群聊参与状态 ==========
         # 当前状态跟踪：chat_id -> AngelHeartStatus
         # 现行语义：NOT_PRESENT=离场，OBSERVATION=在场
-        self.current_states: Dict[str, AngelHeartStatus] = {}
+        self.current_states: dict[str, AngelHeartStatus] = {}
 
         # 状态转换管理器
         self.status_transition_manager = StatusTransitionManager(self)
@@ -100,7 +98,6 @@ class AngelHeartContext:
     def get_last_analysis_time(self, chat_id: str) -> float:
         """获取最后一次分析的时间戳"""
         return self.last_analysis_time.get(chat_id, 0)
-
 
     # ========== 4状态机制状态管理方法 ==========
 
@@ -147,7 +144,7 @@ class AngelHeartContext:
         """
         await self.status_transition_manager.transition_to_status(chat_id, new_status, reason)
 
-    def get_status_summary(self, chat_id: str) -> Dict:
+    def get_status_summary(self, chat_id: str) -> dict:
         """
         获取状态摘要信息
 
@@ -164,17 +161,11 @@ class AngelHeartContext:
         current_status = self.get_chat_status(chat_id)
         if keep_not_present:
             self.start_leave_reply_cooldown(chat_id)
-            logger.info(
-                f"AngelHeart[{chat_id}]: 离场应答已发送，保持离场"
-            )
+            logger.info(f"AngelHeart[{chat_id}]: 离场应答已发送，保持离场")
             return
 
-        logger.info(
-            f"AngelHeart[{chat_id}]: AI回复完成，当前状态: {current_status.value}，转入在场"
-        )
-        await self.transition_to_status(
-            chat_id, AngelHeartStatus.OBSERVATION, "AI回复完成，进入在场"
-        )
+        logger.info(f"AngelHeart[{chat_id}]: AI回复完成，当前状态: {current_status.value}，转入在场")
+        await self.transition_to_status(chat_id, AngelHeartStatus.OBSERVATION, "AI回复完成，进入在场")
 
     def is_in_observation_period(self, chat_id: str) -> bool:
         """
@@ -215,6 +206,4 @@ class AngelHeartContext:
         """离场应答成功发送后，启动下一次离场应答的冷却。"""
         cooldown_duration = self.config_manager.leave_reply_cooldown_duration
         self.leave_reply_cooldown_until[chat_id] = time.time() + cooldown_duration
-        logger.info(
-            f"AngelHeart[{chat_id}]: 离场应答进入冷却期，冷却时间 {cooldown_duration} 秒"
-        )
+        logger.info(f"AngelHeart[{chat_id}]: 离场应答进入冷却期，冷却时间 {cooldown_duration} 秒")

@@ -156,9 +156,7 @@ def test_describe_image_returns_provider_failure_as_tool_result():
             path=path,
             focus="读取文字",
             caption_provider_id="vision",
-            astr_context=SimpleNamespace(
-                get_provider_by_id=lambda _id: FailingProvider()
-            ),
+            astr_context=SimpleNamespace(get_provider_by_id=lambda _id: FailingProvider()),
         )
     )
 

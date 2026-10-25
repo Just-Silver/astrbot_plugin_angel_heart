@@ -41,9 +41,7 @@ astrbot_core_star_register_module = types.ModuleType("astrbot.core.star.register
 astrbot_core_star_star_tools_module = types.ModuleType("astrbot.core.star.star_tools")
 astrbot_core_star_filter_module = types.ModuleType("astrbot.core.star.filter")
 astrbot_core_star_filter_command_module = types.ModuleType("astrbot.core.star.filter.command")
-astrbot_core_star_filter_command_group_module = types.ModuleType(
-    "astrbot.core.star.filter.command_group"
-)
+astrbot_core_star_filter_command_group_module = types.ModuleType("astrbot.core.star.filter.command_group")
 
 
 class AstrMessageEvent:
@@ -255,10 +253,7 @@ def guard_stub_identity():
         for name in set(expected) | set(current):
             if current.get(name) is not expected.get(name):
                 drifts.append(f"{module.__name__}.{name}")
-    assert not drifts, (
-        "测试桩被中途替换（桩只增不改，见 AGENTS.md 测试规范），违规符号：\n  "
-        + "\n  ".join(drifts)
-    )
+    assert not drifts, "测试桩被中途替换（桩只增不改，见 AGENTS.md 测试规范），违规符号：\n  " + "\n  ".join(drifts)
 
 
 @pytest.fixture(autouse=True)

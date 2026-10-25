@@ -3,7 +3,8 @@ JSON 解析工具，从文本中提取 JSON 数据
 """
 
 import json
-from typing import Dict, Optional, Any, List
+from typing import Any
+
 
 def _strip_code_fences(text: str) -> str:
     """去除 Markdown 代码块围栏"""
@@ -13,16 +14,16 @@ def _strip_code_fences(text: str) -> str:
     return text.replace("```json", "").replace("```JSON", "").replace("```", "").strip()
 
 
-def _find_json_candidates(text: str) -> List[str]:
+def _find_json_candidates(text: str) -> list[str]:
     """扫描文本中的平衡大括号，返回 JSON 候选"""
-    candidates: List[str] = []
+    candidates: list[str] = []
     if not text:
         return candidates
 
     in_string = False
     escape = False
     depth = 0
-    start_idx: Optional[int] = None
+    start_idx: int | None = None
 
     for i, ch in enumerate(text):
         if in_string:
@@ -63,7 +64,7 @@ class JsonParser:
     def __init__(self):
         pass
 
-    def parse_llm_response(self, response_text: str) -> Optional[Dict[str, Any]]:
+    def parse_llm_response(self, response_text: str) -> dict[str, Any] | None:
         """
         从 LLM 响应文本中解析出 feedback_data 字典。
 
@@ -98,9 +99,9 @@ class JsonParser:
         self,
         text: str,
         separator: str = "---JSON---",
-        required_fields: Optional[List[str]] = None,
-        optional_fields: Optional[List[str]] = None,
-    ) -> Optional[Dict[str, Any]]:
+        required_fields: list[str] | None = None,
+        optional_fields: list[str] | None = None,
+    ) -> dict[str, Any] | None:
         """
         从文本中提取 JSON 对象。
 

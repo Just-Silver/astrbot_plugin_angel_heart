@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 
-def parse_pipe_phrases(raw: Any) -> List[str]:
+def parse_pipe_phrases(raw: Any) -> list[str]:
     """解析 `|` 分隔短语，去掉空项并去重保序。"""
     if isinstance(raw, list):
         phrases = [str(item).strip() for item in raw]
@@ -18,7 +19,7 @@ def parse_pipe_phrases(raw: Any) -> List[str]:
     return _dedupe_keep_order(phrases)
 
 
-def parse_space_phrases(raw: Any) -> List[str]:
+def parse_space_phrases(raw: Any) -> list[str]:
     """解析空格分隔短语，去掉空项并去重保序。"""
     if isinstance(raw, list):
         phrases = [str(item).strip() for item in raw]
@@ -27,9 +28,9 @@ def parse_space_phrases(raw: Any) -> List[str]:
     return _dedupe_keep_order(phrases)
 
 
-def _dedupe_keep_order(phrases: Iterable[str]) -> List[str]:
+def _dedupe_keep_order(phrases: Iterable[str]) -> list[str]:
     seen = set()
-    result: List[str] = []
+    result: list[str] = []
     for phrase in phrases:
         if not phrase or phrase in seen:
             continue
@@ -42,7 +43,7 @@ def extract_plain_body_from_components(components: Sequence[Any] | None) -> str:
     """只拼接 Plain 组件文本，忽略 Reply / At / 图片等。"""
     if not components:
         return ""
-    parts: List[str] = []
+    parts: list[str] = []
     for component in components:
         cls_name = component.__class__.__name__
         text = getattr(component, "text", None)
@@ -56,12 +57,12 @@ def extract_plain_body_from_components(components: Sequence[Any] | None) -> str:
     return "".join(parts).strip()
 
 
-def match_phrases(body_text: str, phrases: Sequence[str], *, casefold: bool = False) -> List[str]:
+def match_phrases(body_text: str, phrases: Sequence[str], *, casefold: bool = False) -> list[str]:
     """返回正文中命中的短语列表；同一短语只记一次。"""
     if not body_text or not phrases:
         return []
     haystack = body_text.casefold() if casefold else body_text
-    hits: List[str] = []
+    hits: list[str] = []
     seen = set()
     for phrase in phrases:
         needle = phrase.casefold() if casefold else phrase
@@ -79,9 +80,9 @@ def build_message_hits(
     alias_phrases: Sequence[str],
     focus_phrases: Sequence[str],
     is_at_self: bool,
-) -> List[Dict[str, str]]:
+) -> list[dict[str, str]]:
     """构建命中列表。type: at_self | alias | focus。"""
-    hits: List[Dict[str, str]] = []
+    hits: list[dict[str, str]] = []
     if is_at_self:
         hits.append({"type": "at_self"})
     for phrase in match_phrases(body_text, alias_phrases, casefold=True):
@@ -97,7 +98,7 @@ def build_message_metadata(
     alias_phrases: Sequence[str],
     focus_phrases: Sequence[str],
     is_at_self: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """构建消息 metadata：正文快照 + 命中列表。"""
     return {
         "body_text": body_text or "",
@@ -110,7 +111,7 @@ def build_message_metadata(
     }
 
 
-def metadata_has_hit(metadata: Dict[str, Any] | None, hit_type: str) -> bool:
+def metadata_has_hit(metadata: dict[str, Any] | None, hit_type: str) -> bool:
     """metadata.hits 是否包含指定 type。"""
     if not isinstance(metadata, dict):
         return False
@@ -125,14 +126,14 @@ def metadata_has_hit(metadata: Dict[str, Any] | None, hit_type: str) -> bool:
     return False
 
 
-def metadata_hit_phrases(metadata: Dict[str, Any] | None, hit_type: str) -> List[str]:
+def metadata_hit_phrases(metadata: dict[str, Any] | None, hit_type: str) -> list[str]:
     """取出指定 type 的命中短语。"""
     if not isinstance(metadata, dict):
         return []
     hits = metadata.get("hits")
     if not isinstance(hits, list):
         return []
-    phrases: List[str] = []
+    phrases: list[str] = []
     for item in hits:
         if not isinstance(item, dict):
             continue

@@ -2,12 +2,16 @@
 提示词模块加载器
 用于动态加载和组装模块化的提示词文件
 """
+
 from pathlib import Path
+
 try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
+
 
 class PromptModuleLoader:
     """提示词模块加载器
@@ -25,9 +29,13 @@ class PromptModuleLoader:
     def load_all_modules(self):
         """一次性加载所有模块文件到内存"""
         module_names = [
-            "identity.md", "behavior_rules.md", "decision_logic.md",
-            "conversation_analysis.md", "strategy_generation.md",
-            "instruction_prompts.md", "reasoning_prompts.md"
+            "identity.md",
+            "behavior_rules.md",
+            "decision_logic.md",
+            "conversation_analysis.md",
+            "strategy_generation.md",
+            "instruction_prompts.md",
+            "reasoning_prompts.md",
         ]
 
         for name in module_names:
@@ -56,7 +64,7 @@ class PromptModuleLoader:
             self.base_modules.get("behavior_rules.md", ""),
             self.base_modules.get("decision_logic.md", ""),
             self.base_modules.get("conversation_analysis.md", ""),
-            self.base_modules.get("strategy_generation.md", "")
+            self.base_modules.get("strategy_generation.md", ""),
         ]
 
         # 根据配置选择输出格式模块
