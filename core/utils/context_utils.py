@@ -25,6 +25,7 @@ _GENERIC_IMAGE_PLACEHOLDER_RE = re.compile(r"(?:\s*\[图片\]\s*)+")
 def json_serialize_context(
     chat_records: List[Dict],
     decision: Union["SecretaryDecision", Dict],
+    historical_count: int = 0,
 ) -> str:
     """
     将聊天记录与秘书决策序列化为 JSON 字符串，注入到 AstrMessageEvent。
@@ -32,6 +33,8 @@ def json_serialize_context(
     Args:
         chat_records: 聊天记录列表
         decision: 秘书决策对象或字典
+        historical_count: chat_records 前 N 条属于历史前缀（摘要/压缩块），
+            其余为当前连续块。消费方据此切分，不必猜测 role 结构。
 
     Returns:
         angelheart_context JSON 字符串（chat_records + secretary_decision）
@@ -62,6 +65,7 @@ def json_serialize_context(
 
         context_data = {
             "chat_records": validated_records,
+            "historical_count": max(0, int(historical_count or 0)),
             "secretary_decision": decision_dict,
         }
         return json.dumps(context_data, ensure_ascii=False, default=str)
