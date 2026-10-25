@@ -995,10 +995,14 @@ class FrontDesk:
             full_snapshot = historical_context + recent_dialogue
             try:
                 event.angelheart_context = json_serialize_context(
-                    full_snapshot, decision
+                    full_snapshot,
+                    decision,
+                    historical_count=len(historical_context),
                 )
                 logger.debug(
-                    f"AngelHeart[{chat_id}]: 上下文已注入 event.angelheart_context"
+                    f"AngelHeart[{chat_id}]: 上下文已注入 event.angelheart_context "
+                    f"records={len(full_snapshot)} historical={len(historical_context)} "
+                    f"batch={len(recent_dialogue)}"
                 )
             except Exception as e:
                 logger.error(f"AngelHeart[{chat_id}]: 注入上下文失败: {e}")
