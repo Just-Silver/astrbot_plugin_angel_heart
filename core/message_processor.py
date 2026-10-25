@@ -13,7 +13,7 @@ MessageProcessor - 前台消息处理器
 """
 
 import copy
-from typing import Any, List, Dict
+from typing import Any
 
 from .utils import format_message_to_text
 from .utils.message_utils import serialize_content_parts
@@ -37,7 +37,7 @@ class MessageProcessor:
     def __init__(self, alias: str):
         self.alias = alias
 
-    def process_message(self, msg: Dict[str, Any]) -> Dict[str, Any]:
+    def process_message(self, msg: dict[str, Any]) -> dict[str, Any]:
         """
         处理单条消息，将 ConversationLedger 内部格式转换为上游 context 消息
 
@@ -59,28 +59,28 @@ class MessageProcessor:
         # 处理普通消息
         return self._handle_regular_message(msg)
 
-    def _is_tool_call(self, msg: Dict[str, Any]) -> bool:
+    def _is_tool_call(self, msg: dict[str, Any]) -> bool:
         """判断是否为工具调用消息"""
         return msg.get("role") == "assistant" and msg.get("tool_calls")
 
-    def _is_tool_result(self, msg: Dict[str, Any]) -> bool:
+    def _is_tool_result(self, msg: dict[str, Any]) -> bool:
         """判断是否为工具结果消息"""
         return msg.get("role") == "tool"
 
-    def _handle_tool_call(self, msg: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_tool_call(self, msg: dict[str, Any]) -> dict[str, Any]:
         """处理工具调用消息"""
         dict_msg = msg.copy()
         # 使用 .model_dump() 将 Pydantic 对象转换为字典
         tool_calls = msg.get("tool_calls", [])
-        if tool_calls and hasattr(tool_calls[0], 'model_dump'):
+        if tool_calls and hasattr(tool_calls[0], "model_dump"):
             dict_msg["tool_calls"] = [tc.model_dump() for tc in tool_calls]
         return dict_msg
 
-    def _handle_tool_result(self, msg: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_tool_result(self, msg: dict[str, Any]) -> dict[str, Any]:
         """处理工具结果消息（通常已经是字典，直接返回）"""
         return msg.copy()
 
-    def _handle_regular_message(self, msg: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_regular_message(self, msg: dict[str, Any]) -> dict[str, Any]:
         """处理普通消息（使用已有的图片转述、文本格式化等）"""
         role = msg.get("role", "user")
 
@@ -129,12 +129,9 @@ class MessageProcessor:
                 final_content.append({"type": "text", "text": image_ref_text})
             final_content.extend(image_components)
 
-        return {
-            "role": role,
-            "content": final_content
-        }
+        return {"role": role, "content": final_content}
 
-    def _normalize_content(self, content: Any) -> List[Dict[str, Any]]:
+    def _normalize_content(self, content: Any) -> list[dict[str, Any]]:
         """标准化 content 为列表格式"""
         if isinstance(content, str):
             return [{"type": "text", "text": content}]
@@ -144,21 +141,18 @@ class MessageProcessor:
         else:
             return [{"type": "text", "text": str(content)}]
 
-    def _remove_image_components(self, content_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _remove_image_components(self, content_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """移除图片组件，仅保留原有文本内容。"""
         return [item for item in content_list if item.get("type") != "image_url"]
 
-    def _extract_image_components(self, original_content: Any) -> List[Dict[str, Any]]:
+    def _extract_image_components(self, original_content: Any) -> list[dict[str, Any]]:
         """从原始内容中提取图片组件"""
         if not isinstance(original_content, list):
             return []
 
-        return [
-            item for item in original_content
-            if item.get("type") == "image_url"
-        ]
+        return [item for item in original_content if item.get("type") == "image_url"]
 
-    def _build_image_refs_text(self, image_components: List[Dict[str, Any]]) -> str:
+    def _build_image_refs_text(self, image_components: list[dict[str, Any]]) -> str:
         """将图片组件中的可用引用拼接为文本，确保历史消息中也可见。"""
         if not image_components:
             return ""

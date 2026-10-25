@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from core.chat_sources import ChatSourcesStore, STORE_FILE_NAME
+from core.chat_sources import STORE_FILE_NAME, ChatSourcesStore
 
 
 @pytest.fixture

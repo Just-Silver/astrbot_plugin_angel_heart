@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 try:
     from astrbot.api.web import error_response, json_response, request
+
     HAS_WEB_API = True
 except ImportError:  # 兼容旧版 AstrBot（无 astrbot.api.web）
     from quart import jsonify, request  # type: ignore
@@ -35,7 +36,7 @@ def _err(message: str, status_code: int = 400) -> Any:
     return resp
 
 
-async def _get_json() -> Dict:
+async def _get_json() -> dict:
     """读取请求体 JSON，兼容新版 astrbot.api.web 与 quart 两种形态。"""
     if HAS_WEB_API:
         data = await request.json(default=None)
@@ -79,23 +80,15 @@ class ProfileAPI:
         """
         templates = [
             t
-            for t in (
-                self.profile_store.get_template(item["id"])
-                for item in self.profile_store.list_templates()
-            )
+            for t in (self.profile_store.get_template(item["id"]) for item in self.profile_store.list_templates())
             if t is not None
         ]
-        bindings = {
-            item["chat_id"]: item["template_id"]
-            for item in self.profile_store.list_bindings()
-        }
+        bindings = {item["chat_id"]: item["template_id"] for item in self.profile_store.list_bindings()}
         return _ok(
             {
                 "templates": templates,
                 "bindings": bindings,
-                "global_config": self.profile_store.template_from_global(
-                    self.config_manager
-                ),
+                "global_config": self.profile_store.template_from_global(self.config_manager),
             }
         )
 
@@ -125,7 +118,7 @@ class ProfileAPI:
         template_id = str(payload.get("id") or "").strip()
         if not template_id:
             return _err("缺少模板 id")
-        patch: Dict[str, Any] = {}
+        patch: dict[str, Any] = {}
         if "name" in payload:
             patch["name"] = str(payload.get("name") or "").strip()
         if "description" in payload:
@@ -176,14 +169,12 @@ class ProfileAPI:
 
     # ---------- 群聊 ----------
 
-    def _known_chats(self) -> List[Dict]:
+    def _known_chats(self) -> list[dict]:
         """合并来源/ledger/白名单并去重，返回 chat 条目列表（无 Response 包装）。"""
-        known: List[str] = []
+        known: list[str] = []
         try:
             if self.chat_sources is not None:
-                known.extend(
-                    item["chat_id"] for item in self.chat_sources.list_sources()
-                )
+                known.extend(item["chat_id"] for item in self.chat_sources.list_sources())
         except Exception:
             logger.debug("AngelHeart: 读取来源登记失败", exc_info=True)
         try:
@@ -273,9 +264,7 @@ class ProfileAPI:
                         if get_start is not None:
                             start = get_start(chat_id)
                             if start:
-                                timeout = self.config_manager.for_chat(
-                                    chat_id
-                                ).observation_timeout
+                                timeout = self.config_manager.for_chat(chat_id).observation_timeout
                                 if time.time() - start >= timeout:
                                     status = dict(status)
                                     status["current_status"] = "NOT_PRESENT"
@@ -434,7 +423,7 @@ class PluginConfigAPI:
         self._schema = getattr(config, "schema", None) or {}
 
     def get_config(self):
-        providers: Dict[str, List[str]] = {"chat": [], "embedding": [], "rerank": []}
+        providers: dict[str, list[str]] = {"chat": [], "embedding": [], "rerank": []}
         try:
             for p in self._plugin.context.get_all_providers():
                 providers["chat"].append(p.meta().id)
@@ -462,7 +451,7 @@ class PluginConfigAPI:
             return _err("values 必须是 JSON 对象")
 
         errors: list[str] = []
-        converted: Dict[str, Any] = {}
+        converted: dict[str, Any] = {}
         for key, value in values.items():
             meta = self._schema.get(key)
             if not isinstance(meta, dict):

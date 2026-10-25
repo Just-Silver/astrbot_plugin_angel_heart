@@ -11,9 +11,7 @@ import types
 from unittest.mock import MagicMock
 
 import pytest
-
 from astrbot.core.message.components import Reply
-
 from astrbot_plugin_angel_heart.core.angel_heart_status import StatusChecker
 from astrbot_plugin_angel_heart.core.config_manager import ConfigManager
 from astrbot_plugin_angel_heart.roles.front_desk import FrontDesk

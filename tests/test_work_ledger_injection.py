@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
-from astrbot_plugin_angel_heart.core.work_ledger import WorkLedger
 from astrbot_plugin_angel_heart.core.llm_analyzer import LLMAnalyzer
+from astrbot_plugin_angel_heart.core.work_ledger import WorkLedger
 
 
 class TestWorkLedgerFormat:
@@ -126,9 +124,7 @@ class TestWorkLedgerLifecycle:
         )
         active = wl.get_active_works("g1")
         assert [w.work_id for w in active] == ["w2"]
-        assert [w.work_id for w in wl.get_active_works("g2")] == [
-            "other-chat-work"
-        ]
+        assert [w.work_id for w in wl.get_active_works("g2")] == ["other-chat-work"]
         old = wl.get_recent_works("g1", limit=8)
         w1 = next(w for w in old if w.work_id == "w1")
         assert w1.status == "failed"
@@ -206,8 +202,7 @@ class TestAnalyzerPromptInjection:
         config.reply_strategy_guide = "策略"
         analyzer = LLMAnalyzer("mock", MagicMock(), "策略", config)
         analyzer.base_prompt_template = (
-            "BASE\n{historical_context}\n{recent_dialogue}\n"
-            "{reply_strategy_guide}\n{alias}\n{ai_self_identity}"
+            "BASE\n{historical_context}\n{recent_dialogue}\n{reply_strategy_guide}\n{alias}\n{ai_self_identity}"
         )
         analyzer.strategy_guide = "策略"
         prompt = analyzer._build_prompt(

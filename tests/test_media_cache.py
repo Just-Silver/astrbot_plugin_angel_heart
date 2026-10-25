@@ -8,11 +8,11 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from core.image_cache import ImageCache
 from core.conversation_ledger import ConversationLedger
-
+from core.image_cache import ImageCache
 
 # ── 辅助 ──────────────────────────────────────────
+
 
 def _make_test_image(size=(800, 600), color=(200, 100, 50), fmt="JPEG") -> bytes:
     """生成一张纯色测试图片字节"""
@@ -69,13 +69,17 @@ def cache():
 
 @pytest.fixture
 def ledger():
-    config = type("MockConfig", (), {
-        "max_conversation_tokens": 0,
-        "context_compression_threshold": 0.8,
-        "context_content_retain_tokens": 3000,
-        "context_tool_retain_tokens": 1000,
-        "context_forgetting_timeout": 0,
-    })()
+    config = type(
+        "MockConfig",
+        (),
+        {
+            "max_conversation_tokens": 0,
+            "context_compression_threshold": 0.8,
+            "context_content_retain_tokens": 3000,
+            "context_tool_retain_tokens": 1000,
+            "context_forgetting_timeout": 0,
+        },
+    )()
     with tempfile.TemporaryDirectory() as td:
         lg = ConversationLedger(config, Path(td))
         try:
@@ -85,6 +89,7 @@ def ledger():
 
 
 # ── ImageCache 基本功能 ──────────────────────────
+
 
 class TestImageCacheBasic:
     """ImageCache 核心读写功能"""
@@ -299,6 +304,7 @@ class TestCacheDeduplicationAcrossChats:
 
 # ── ConversationLedger 缓存清理集成测试 ──────────
 
+
 class TestCacheCleanupIntegration:
     """验证 ConversationLedger 清理插件自有缓存"""
 
@@ -309,13 +315,17 @@ class TestCacheCleanupIntegration:
         stale_file = stale_dir / "stale.webp"
         stale_file.write_bytes(b"old")
 
-        config = type("MockConfig", (), {
-            "max_conversation_tokens": 0,
-            "context_compression_threshold": 0.8,
-            "context_content_retain_tokens": 3000,
-            "context_tool_retain_tokens": 1000,
-            "context_forgetting_timeout": 0,
-        })()
+        config = type(
+            "MockConfig",
+            (),
+            {
+                "max_conversation_tokens": 0,
+                "context_compression_threshold": 0.8,
+                "context_content_retain_tokens": 3000,
+                "context_tool_retain_tokens": 1000,
+                "context_forgetting_timeout": 0,
+            },
+        )()
         lg = ConversationLedger(config, tmp_path)
         try:
             assert not stale_file.exists()
@@ -339,37 +349,45 @@ class TestCacheCleanupIntegration:
         cache_path = str(ledger.image_cache.get_cached_path(chat_id, dhash))
 
         # 旧图消息
-        ledger.add_message(chat_id, {
-            "role": "user",
-            "content": [{
-                "type": "image_url",
-                "image_url": {"url": cache_path},
-                "cache_path": cache_path,
-                "cache_dhash": dhash,
-            }],
-            "timestamp": 1,
-        })
+        ledger.add_message(
+            chat_id,
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": cache_path},
+                        "cache_path": cache_path,
+                        "cache_dhash": dhash,
+                    }
+                ],
+                "timestamp": 1,
+            },
+        )
         assert Path(cache_path).exists()
 
         # 再塞大量文本，强制 group 规则整理把旧消息收走
         for i in range(2, 40):
-            ledger.add_message(chat_id, {
-                "role": "user",
-                "content": [{"type": "text", "text": ("x" * 80) + str(i)}],
-                "timestamp": float(i),
-                "chat_id": chat_id,
-            })
+            ledger.add_message(
+                chat_id,
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": ("x" * 80) + str(i)}],
+                    "timestamp": float(i),
+                    "chat_id": chat_id,
+                },
+            )
         ledger.organize_context(chat_id, mode="group_rule")
         ledger._cleanup_unreferenced_media_cache(chat_id)
 
         # 旧图若不在连续块引用里，缓存应被清
         msgs = ledger.get_all_messages(chat_id)
         still_referenced = any(
-            cache_path in str(m.get("content", "")) or
-            (isinstance(m.get("content"), list) and any(
-                isinstance(it, dict) and it.get("cache_path") == cache_path
-                for it in m["content"]
-            ))
+            cache_path in str(m.get("content", ""))
+            or (
+                isinstance(m.get("content"), list)
+                and any(isinstance(it, dict) and it.get("cache_path") == cache_path for it in m["content"])
+            )
             for m in msgs
         )
         if not still_referenced:
@@ -382,16 +400,21 @@ class TestCacheCleanupIntegration:
         cache_path = str(ledger.image_cache.get_cached_path(chat_id, dhash))
 
         for ts in (1, 2):
-            ledger.add_message(chat_id, {
-                "role": "user",
-                "content": [{
-                    "type": "image_url",
-                    "image_url": {"url": cache_path},
-                    "cache_path": cache_path,
-                    "cache_dhash": dhash,
-                }],
-                "timestamp": ts,
-            })
+            ledger.add_message(
+                chat_id,
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": cache_path},
+                            "cache_path": cache_path,
+                            "cache_dhash": dhash,
+                        }
+                    ],
+                    "timestamp": ts,
+                },
+            )
 
         assert Path(cache_path).exists()
         ledger._cleanup_unreferenced_media_cache(chat_id)
@@ -405,16 +428,21 @@ class TestCacheCleanupIntegration:
         referenced_path = str(ledger.image_cache.get_cached_path(chat_id, referenced_dhash))
         orphan_path = str(ledger.image_cache.get_cached_path(chat_id, orphan_dhash))
 
-        ledger.add_message(chat_id, {
-            "role": "user",
-            "content": [{
-                "type": "image_url",
-                "image_url": {"url": referenced_path},
-                "cache_path": referenced_path,
-                "cache_dhash": referenced_dhash,
-            }],
-            "timestamp": 1,
-        })
+        ledger.add_message(
+            chat_id,
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": referenced_path},
+                        "cache_path": referenced_path,
+                        "cache_dhash": referenced_dhash,
+                    }
+                ],
+                "timestamp": 1,
+            },
+        )
 
         ledger._cleanup_unreferenced_media_cache(chat_id)
 
@@ -426,11 +454,14 @@ class TestCaptionProviderErrors:
     @pytest.mark.asyncio
     async def test_provider_error_writes_broken_caption_and_returns(self, ledger, monkeypatch):
         chat_id = "chat_1"
-        ledger.add_message(chat_id, {
-            "role": "user",
-            "content": [{"type": "image_url", "image_url": {"url": "https://example.test/a.jpg"}}],
-            "timestamp": 1.0,
-        })
+        ledger.add_message(
+            chat_id,
+            {
+                "role": "user",
+                "content": [{"type": "image_url", "image_url": {"url": "https://example.test/a.jpg"}}],
+                "timestamp": 1.0,
+            },
+        )
 
         async def load_image_bytes(_url):
             return _make_test_image()
@@ -439,9 +470,7 @@ class TestCaptionProviderErrors:
             async def text_chat(self, **_kwargs):
                 raise RuntimeError("upstream failed")
 
-        astr_context = SimpleNamespace(
-            get_provider_by_id=lambda _provider_id: FailingProvider()
-        )
+        astr_context = SimpleNamespace(get_provider_by_id=lambda _provider_id: FailingProvider())
         monkeypatch.setattr(ledger, "_load_image_bytes", load_image_bytes)
 
         processed = await ledger.generate_captions_for_chat(

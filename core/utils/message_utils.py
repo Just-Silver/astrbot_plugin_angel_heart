@@ -11,12 +11,11 @@ try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 
-def prune_old_messages(
-    cached_messages: list[dict], db_history: list[dict]
-) -> list[dict]:
+def prune_old_messages(cached_messages: list[dict], db_history: list[dict]) -> list[dict]:
     """
     从 cached_messages 中移除已经存在于 db_history 中的消息，实现智能剪枝。
     为了高效去重，我们使用消息的时间戳作为唯一标识符。
@@ -29,14 +28,10 @@ def prune_old_messages(
         List[Dict]: 经过剪枝后，只包含新消息的列表。
     """
     # 1. 构建历史消息时间戳集合
-    history_timestamps = {
-        msg.get("timestamp") for msg in db_history if msg.get("timestamp")
-    }
+    history_timestamps = {msg.get("timestamp") for msg in db_history if msg.get("timestamp")}
 
     # 2. 过滤缓存消息，只保留时间戳不在历史集合中的消息
-    recent_dialogue = [
-        msg for msg in cached_messages if msg.get("timestamp") not in history_timestamps
-    ]
+    recent_dialogue = [msg for msg in cached_messages if msg.get("timestamp") not in history_timestamps]
 
     return recent_dialogue
 
@@ -73,7 +68,7 @@ def serialize_message_chain(message_chain) -> list:
 
     # 条件导入 AstrBot 的消息组件
     try:
-        from astrbot.core.message.components import Plain, Image
+        from astrbot.core.message.components import Image, Plain
     except ImportError:
         logger.warning("无法导入 AstrBot 消息组件，serialize_message_chain 将无法处理图片")
         Plain = None
@@ -83,31 +78,20 @@ def serialize_message_chain(message_chain) -> list:
         # 处理纯文本组件
         if Plain and isinstance(component, Plain):
             if component.text:
-                serialized_content.append({
-                    "type": "text",
-                    "text": component.text
-                })
+                serialized_content.append({"type": "text", "text": component.text})
         # 处理图片组件
         elif Image and isinstance(component, Image):
             # 优先使用 file 字段，如果为空则尝试 path 字段
-            image_url = component.file or getattr(component, 'path', '')
+            image_url = component.file or getattr(component, "path", "")
             if image_url:
-                serialized_content.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": image_url
-                    }
-                })
+                serialized_content.append({"type": "image_url", "image_url": {"url": image_url}})
         # 处理其他未知组件，尝试转换为文本
         else:
             try:
                 # 尝试获取组件的文本表示
                 component_text = str(component)
                 if component_text:
-                    serialized_content.append({
-                        "type": "text",
-                        "text": component_text
-                    })
+                    serialized_content.append({"type": "text", "text": component_text})
             except Exception as e:
                 logger.warning(f"无法序列化未知组件类型: {type(component).__name__}, 错误: {e}")
 
@@ -145,9 +129,7 @@ def estimate_provider_request_baseline_count(provider_request: Any) -> int:
 
     contexts = getattr(provider_request, "contexts", None) or []
     # 上游会把 _checkpoint 绑定到前一条消息，不单独 append 到 messages。
-    baseline_count = sum(
-        1 for item in contexts if not _is_checkpoint_context_item(item)
-    )
+    baseline_count = sum(1 for item in contexts if not _is_checkpoint_context_item(item))
 
     has_current_user_message = bool(
         getattr(provider_request, "prompt", None) is not None

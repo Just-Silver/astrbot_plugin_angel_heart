@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Awaitable, Callable, TypeVar
-
+from typing import TypeVar
 
 _HandlerResult = TypeVar("_HandlerResult")
 
@@ -67,17 +67,9 @@ class RuntimeTaskTracker:
         self._accepting = False
         current = asyncio.current_task()
         children = [task for task in self._children if not task.done()]
-        pipelines = [
-            task
-            for task in self._pipelines
-            if task is not current and not task.done()
-        ]
+        pipelines = [task for task in self._pipelines if task is not current and not task.done()]
 
-        events = {
-            event
-            for event in (*self._children.values(), *self._pipelines.values())
-            if event is not None
-        }
+        events = {event for event in (*self._children.values(), *self._pipelines.values()) if event is not None}
         for event in events:
             self._stop_event(event)
 

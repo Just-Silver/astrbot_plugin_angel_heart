@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from astrbot_plugin_angel_heart.core.utils import strip_period_before_newline
 
 
@@ -140,13 +139,9 @@ class TestStreamingSendState:
         plugin._runtime_tasks = _FakeRuntimeTasks()
         plugin._finish_secretary_dispatch = AsyncMock(return_value=True)
         plugin._extract_sent_message_content = MagicMock(return_value="streamed reply")
-        plugin.front_desk = SimpleNamespace(
-            _get_event_message_id=MagicMock(return_value="message-1")
-        )
+        plugin.front_desk = SimpleNamespace(_get_event_message_id=MagicMock(return_value="message-1"))
         plugin.angel_context = SimpleNamespace(
-            debounce_manager=SimpleNamespace(
-                get_leave_reply_trigger=MagicMock(return_value=None)
-            ),
+            debounce_manager=SimpleNamespace(get_leave_reply_trigger=MagicMock(return_value=None)),
             handle_message_sent=AsyncMock(),
             work_ledger=SimpleNamespace(complete_work=MagicMock()),
         )

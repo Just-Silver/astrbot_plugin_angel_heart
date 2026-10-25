@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from astrbot_plugin_angel_heart.core.utils.context_utils import format_final_prompt
 from astrbot_plugin_angel_heart.core.conversation_ledger import ConversationLedger
+from astrbot_plugin_angel_heart.core.utils.context_utils import format_final_prompt
 from astrbot_plugin_angel_heart.roles.front_desk import FrontDesk
-
 
 _DEFAULT_MODALITIES = object()
 _MISSING_MODALITIES = object()
@@ -18,18 +17,14 @@ def _front_desk(
     modalities=_DEFAULT_MODALITIES,
 ) -> FrontDesk:
     front_desk = object.__new__(FrontDesk)
-    front_desk._config_manager = SimpleNamespace(
-        image_caption_provider_id=image_caption_provider_id
-    )
+    front_desk._config_manager = SimpleNamespace(image_caption_provider_id=image_caption_provider_id)
     if modalities is _DEFAULT_MODALITIES:
         modalities = ["text", "image"] if supports_image else ["text"]
     provider_config = {}
     if modalities is not _MISSING_MODALITIES:
         provider_config["modalities"] = modalities
     provider = SimpleNamespace(provider_config=provider_config)
-    front_desk.astr_context = SimpleNamespace(
-        get_using_provider=lambda chat_id: provider
-    )
+    front_desk.astr_context = SimpleNamespace(get_using_provider=lambda chat_id: provider)
     front_desk.context = SimpleNamespace(astr_context=front_desk.astr_context)
     return front_desk
 
@@ -134,9 +129,7 @@ def test_ledger_does_not_caption_images_when_provider_modalities_are_unconfigure
         ],
         0,
     )
-    astr_context = SimpleNamespace(
-        get_using_provider=lambda chat_id: SimpleNamespace(provider_config={})
-    )
+    astr_context = SimpleNamespace(get_using_provider=lambda chat_id: SimpleNamespace(provider_config={}))
 
     assert ledger.should_process_images("chat", astr_context) is False
 
@@ -218,9 +211,7 @@ def test_appends_non_current_aggregated_images_as_extra_content_parts():
     event = {"start_id": "start-event", "end_id": "current-event"}
 
     # 防抖窗口 = start-event ~ current-event，窗口外 old-event 的图不应被收集
-    extra_urls = front_desk._collect_debounce_window_extra_image_urls(
-        recent_dialogue, event, "current-event"
-    )
+    extra_urls = front_desk._collect_debounce_window_extra_image_urls(recent_dialogue, event, "current-event")
     front_desk._update_request(
         req,
         contexts=[],
@@ -232,9 +223,7 @@ def test_appends_non_current_aggregated_images_as_extra_content_parts():
 
     assert req.image_urls == ["file:///tmp/current.png"]
     # 只补防抖窗口内非当前的 AGGREGATED_IMAGE，窗口外 OLD_IMAGE 不应被搬到附件
-    assert [p.image_url.url for p in req.extra_user_content_parts] == [
-        "data:image/png;base64,AGGREGATED_IMAGE"
-    ]
+    assert [p.image_url.url for p in req.extra_user_content_parts] == ["data:image/png;base64,AGGREGATED_IMAGE"]
 
 
 def test_window_history_images_are_not_moved_to_current_attachment():
@@ -254,9 +243,7 @@ def test_window_history_images_are_not_moved_to_current_attachment():
     ]
     event = {"start_id": "start-event", "end_id": "current-event"}
 
-    extra_urls = front_desk._collect_debounce_window_extra_image_urls(
-        recent_dialogue, event, "current-event"
-    )
+    extra_urls = front_desk._collect_debounce_window_extra_image_urls(recent_dialogue, event, "current-event")
 
     # 窗口内不含图片，历史里的 OLD_HISTORY_IMAGE 属于窗口外，必须被排除
     assert extra_urls == []

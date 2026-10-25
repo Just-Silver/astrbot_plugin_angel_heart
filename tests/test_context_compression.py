@@ -10,11 +10,10 @@
 
 from __future__ import annotations
 
-import time
-import threading
 import tempfile
+import threading
+import time
 from pathlib import Path
-from typing import Dict, List
 
 import pytest
 
@@ -63,9 +62,9 @@ class MockAstrContext:
         return self.provider
 
 
-def make_message(role: str, content: str, timestamp: float,
-                 is_processed: bool = False, tool_calls=None,
-                 sender_name: str = "") -> Dict:
+def make_message(
+    role: str, content: str, timestamp: float, is_processed: bool = False, tool_calls=None, sender_name: str = ""
+) -> dict:
     """创建一条测试消息"""
     msg = {
         "role": role,
@@ -80,8 +79,7 @@ def make_message(role: str, content: str, timestamp: float,
     return msg
 
 
-def make_tool_result(content: str, timestamp: float,
-                     is_processed: bool = False, tool_call_id: str = "") -> Dict:
+def make_tool_result(content: str, timestamp: float, is_processed: bool = False, tool_call_id: str = "") -> dict:
     """创建一条工具结果消息"""
     msg = {
         "role": "tool",
@@ -94,8 +92,7 @@ def make_tool_result(content: str, timestamp: float,
     return msg
 
 
-def make_long_message(role: str, timestamp: float, char_count: int = 500,
-                      is_processed: bool = False) -> Dict:
+def make_long_message(role: str, timestamp: float, char_count: int = 500, is_processed: bool = False) -> dict:
     """创建一条长消息用于Token测试"""
     # 中文字符，每个约0.6 token
     content = "测试消息内容" * (char_count // 6 + 1)
@@ -110,12 +107,14 @@ def temp_dir():
     yield Path(d)
     # Windows 上 SQLite 文件可能被锁定，忽略清理错误
     import shutil
+
     shutil.rmtree(d, ignore_errors=True)
 
 
 def _create_ledger(temp_dir, astr_context=None, **config_kwargs):
     """辅助函数：创建 ledger 并注册清理"""
     from core.conversation_ledger import ConversationLedger
+
     config = MockConfigManager(**config_kwargs)
     return ConversationLedger(config, temp_dir, astr_context=astr_context)
 
@@ -187,9 +186,7 @@ class TestCompressionTrigger:
             chat_id = "test_chat"
             # 添加少量消息，不应触发压缩
             for i in range(10):
-                ledger.add_message(chat_id, make_message(
-                    "user", f"短消息{i}", time.time() + i
-                ))
+                ledger.add_message(chat_id, make_message("user", f"短消息{i}", time.time() + i))
 
             messages = ledger.get_all_messages(chat_id)
             assert len(messages) == 10, "低于阈值时不应压缩"
@@ -208,9 +205,7 @@ class TestCompressionTrigger:
             chat_id = "test_chat"
             # 添加大量消息使Token超过82%（820 tokens）
             for i in range(50):
-                ledger.add_message(chat_id, make_long_message(
-                    "user", time.time() + i, char_count=100
-                ))
+                ledger.add_message(chat_id, make_long_message("user", time.time() + i, char_count=100))
 
             messages = ledger.get_all_messages(chat_id)
             # 压缩后消息数应该减少
@@ -221,6 +216,7 @@ class TestCompressionTrigger:
     def test_forgetting_timeout_triggers_compression(self, temp_dir):
         """遗忘时间超限时强制触发压缩"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=100000,  # 高阈值，不会因Token触发
             context_forgetting_timeout=1,  # 1秒超时，方便测试
@@ -233,17 +229,13 @@ class TestCompressionTrigger:
         base_time = time.time() - 10  # 10秒前的消息
 
         for i in range(20):
-            ledger.add_message(chat_id, make_long_message(
-                "user", base_time + i, char_count=200
-            ))
+            ledger.add_message(chat_id, make_long_message("user", base_time + i, char_count=200))
 
         # 等待超过遗忘时间
         time.sleep(1.1)
 
         # 再添加一条消息触发检查
-        ledger.add_message(chat_id, make_message(
-            "user", "新消息", time.time()
-        ))
+        ledger.add_message(chat_id, make_message("user", "新消息", time.time()))
 
         messages = ledger.get_all_messages(chat_id)
         assert len(messages) < 21, f"遗忘超时应触发压缩，但消息数为 {len(messages)}"
@@ -251,6 +243,7 @@ class TestCompressionTrigger:
     def test_disabled_token_limit(self, temp_dir):
         """max_conversation_tokens=0 时禁用Token触发"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=0,
             context_forgetting_timeout=0,  # 也禁用时间触发
@@ -259,9 +252,7 @@ class TestCompressionTrigger:
 
         chat_id = "test_chat"
         for i in range(100):
-            ledger.add_message(chat_id, make_long_message(
-                "user", time.time() + i, char_count=200
-            ))
+            ledger.add_message(chat_id, make_long_message("user", time.time() + i, char_count=200))
 
         messages = ledger.get_all_messages(chat_id)
         assert len(messages) == 100, "禁用时不应压缩"
@@ -273,6 +264,7 @@ class TestCompressionAlgorithm:
     def test_retains_recent_content_messages(self, temp_dir):
         """压缩后保留最近的正文消息"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=500,
             context_content_retain_tokens=200,
@@ -285,9 +277,7 @@ class TestCompressionAlgorithm:
 
         # 添加20条消息
         for i in range(20):
-            ledger.add_message(chat_id, make_message(
-                "user", f"消息内容{i}", base_time + i
-            ))
+            ledger.add_message(chat_id, make_message("user", f"消息内容{i}", base_time + i))
 
         messages = ledger.get_all_messages(chat_id)
         # 最后几条消息应该被保留
@@ -298,6 +288,7 @@ class TestCompressionAlgorithm:
     def test_retains_recent_tool_messages(self, temp_dir):
         """压缩后保留最近的工具消息"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=800,
             context_content_retain_tokens=300,
@@ -312,35 +303,32 @@ class TestCompressionAlgorithm:
         for i in range(30):
             if i % 3 == 0:
                 # 工具调用
-                ledger.add_message(chat_id, make_message(
-                    "assistant", f"调用工具{i}",
-                    base_time + i,
-                    tool_calls=[{"id": f"call_{i}", "function": {"name": "test"}}]
-                ))
+                ledger.add_message(
+                    chat_id,
+                    make_message(
+                        "assistant",
+                        f"调用工具{i}",
+                        base_time + i,
+                        tool_calls=[{"id": f"call_{i}", "function": {"name": "test"}}],
+                    ),
+                )
             elif i % 3 == 1:
                 # 工具结果
-                ledger.add_message(chat_id, make_tool_result(
-                    f"工具结果{i}", base_time + i
-                ))
+                ledger.add_message(chat_id, make_tool_result(f"工具结果{i}", base_time + i))
             else:
                 # 正文
-                ledger.add_message(chat_id, make_message(
-                    "user", f"用户消息{i}", base_time + i
-                ))
+                ledger.add_message(chat_id, make_message("user", f"用户消息{i}", base_time + i))
 
         messages = ledger.get_all_messages(chat_id)
         # 应该同时包含正文和工具消息
-        has_tool = any(m.get("role") == "tool" or m.get("tool_calls") for m in messages)
-        has_content = any(
-            m.get("role") in ("user", "assistant") and not m.get("tool_calls")
-            for m in messages
-        )
+        has_content = any(m.get("role") in ("user", "assistant") and not m.get("tool_calls") for m in messages)
         assert has_content, "应保留正文消息"
         # 工具消息可能被保留也可能不被保留，取决于预算
 
     def test_preserves_time_order(self, temp_dir):
         """压缩后消息保持时间顺序"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=600,
             context_content_retain_tokens=300,
@@ -352,9 +340,7 @@ class TestCompressionAlgorithm:
         base_time = time.time()
 
         for i in range(40):
-            ledger.add_message(chat_id, make_long_message(
-                "user", base_time + i, char_count=80
-            ))
+            ledger.add_message(chat_id, make_long_message("user", base_time + i, char_count=80))
 
         messages = ledger.get_all_messages(chat_id)
         timestamps = [m.get("timestamp", 0) for m in messages]
@@ -363,6 +349,7 @@ class TestCompressionAlgorithm:
     def test_minimum_retain_count(self, temp_dir):
         """压缩后至少保留 MIN_RETAIN_COUNT 条消息（当有足够消息时）"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=2000,  # 适中的限制
             context_content_retain_tokens=100,  # 较小的预算
@@ -374,20 +361,21 @@ class TestCompressionAlgorithm:
         base_time = time.time()
 
         # 一次性批量设置消息（绕过 add_message 的逐条压缩）
-        messages = [make_long_message("user", base_time + i, char_count=100)
-                    for i in range(50)]
+        messages = [make_long_message("user", base_time + i, char_count=100) for i in range(50)]
         ledger.set_messages(chat_id, messages)
 
         # 手动触发压缩
         ledger.organize_context(chat_id, mode="auto")
 
         result = ledger.get_all_messages(chat_id)
-        assert len(result) >= ledger.MIN_RETAIN_COUNT, \
+        assert len(result) >= ledger.MIN_RETAIN_COUNT, (
             f"至少应保留 {ledger.MIN_RETAIN_COUNT} 条消息，实际 {len(result)}"
+        )
 
     def test_old_messages_discarded(self, temp_dir):
         """旧消息被正确丢弃"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=500,
             context_content_retain_tokens=200,
@@ -400,10 +388,7 @@ class TestCompressionAlgorithm:
 
         # 添加带标记的消息
         for i in range(30):
-            ledger.add_message(chat_id, make_message(
-                "user", f"OLD_{i}" if i < 10 else f"NEW_{i}",
-                base_time + i
-            ))
+            ledger.add_message(chat_id, make_message("user", f"OLD_{i}" if i < 10 else f"NEW_{i}", base_time + i))
 
         messages = ledger.get_all_messages(chat_id)
         contents = [m.get("content", "") for m in messages]
@@ -419,6 +404,7 @@ class TestConcurrency:
     def test_concurrent_add_messages(self, temp_dir):
         """多线程并发添加消息不会崩溃"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=2000,
             context_content_retain_tokens=500,
@@ -432,11 +418,9 @@ class TestConcurrency:
         def add_messages(thread_id: int):
             try:
                 for i in range(100):
-                    ledger.add_message(chat_id, make_message(
-                        "user",
-                        f"线程{thread_id}_消息{i}",
-                        time.time() + thread_id * 1000 + i
-                    ))
+                    ledger.add_message(
+                        chat_id, make_message("user", f"线程{thread_id}_消息{i}", time.time() + thread_id * 1000 + i)
+                    )
             except Exception as e:
                 errors.append(f"Thread {thread_id}: {e}")
 
@@ -474,9 +458,7 @@ class TestConcurrency:
             def release(self):
                 ledger_data = ledger._ledgers.get(chat_id)
                 if ledger_data is not None:
-                    release_snapshots.append(
-                        [m.get("role") for m in list(ledger_data["messages"])]
-                    )
+                    release_snapshots.append([m.get("role") for m in list(ledger_data["messages"])])
                 return real_lock.release()
 
             def __enter__(self):
@@ -507,17 +489,13 @@ class TestConcurrency:
         assert messages[1].get("tool_call_id") == "call_1"
         assert messages[2].get("content") == "final answer"
         # 释放锁时至少有一次看到完整链，且从未单独暴露半截 tool 链。
-        assert any(
-            roles == ["assistant", "tool", "assistant"] for roles in release_snapshots
-        )
-        assert not any(
-            roles in (["assistant"], ["assistant", "tool"])
-            for roles in release_snapshots
-        )
+        assert any(roles == ["assistant", "tool", "assistant"] for roles in release_snapshots)
+        assert not any(roles in (["assistant"], ["assistant", "tool"]) for roles in release_snapshots)
 
     def test_concurrent_compression_and_read(self, temp_dir):
         """压缩和读取并发不会崩溃"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=1000,
             context_content_retain_tokens=300,
@@ -530,16 +508,12 @@ class TestConcurrency:
 
         # 预填充消息
         for i in range(50):
-            ledger.add_message(chat_id, make_long_message(
-                "user", time.time() + i, char_count=100
-            ))
+            ledger.add_message(chat_id, make_long_message("user", time.time() + i, char_count=100))
 
         def writer():
             try:
                 for i in range(50):
-                    ledger.add_message(chat_id, make_long_message(
-                        "user", time.time() + 1000 + i, char_count=100
-                    ))
+                    ledger.add_message(chat_id, make_long_message("user", time.time() + 1000 + i, char_count=100))
             except Exception as e:
                 errors.append(f"Writer: {e}")
 
@@ -571,6 +545,7 @@ class TestCacheHitEffectiveness:
     def test_context_snapshot_after_compression(self, temp_dir):
         """压缩后 get_context_snapshot 仍能正常工作"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=800,
             context_content_retain_tokens=400,
@@ -634,9 +609,7 @@ class TestCacheHitEffectiveness:
             },
         )
 
-        historical, recent, boundary = ledger.get_context_snapshot(
-            "missing_boundary", "missing"
-        )
+        historical, recent, boundary = ledger.get_context_snapshot("missing_boundary", "missing")
 
         assert historical == []
         assert recent == []
@@ -645,6 +618,7 @@ class TestCacheHitEffectiveness:
     def test_repeated_compression_stability(self, temp_dir):
         """多次压缩后系统保持稳定"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=500,
             context_content_retain_tokens=200,
@@ -658,18 +632,14 @@ class TestCacheHitEffectiveness:
         for batch in range(10):
             base_time = time.time() + batch * 100
             for i in range(20):
-                ledger.add_message(chat_id, make_long_message(
-                    "user", base_time + i, char_count=80
-                ))
+                ledger.add_message(chat_id, make_long_message("user", base_time + i, char_count=80))
 
             messages = ledger.get_all_messages(chat_id)
-            assert len(messages) >= ledger.MIN_RETAIN_COUNT, \
-                f"第{batch}批后消息数不足: {len(messages)}"
+            assert len(messages) >= ledger.MIN_RETAIN_COUNT, f"第{batch}批后消息数不足: {len(messages)}"
 
             # 验证时间顺序
             timestamps = [m["timestamp"] for m in messages]
-            assert timestamps == sorted(timestamps), \
-                f"第{batch}批后时间顺序错乱"
+            assert timestamps == sorted(timestamps), f"第{batch}批后时间顺序错乱"
 
 
 class TestStressScenarios:
@@ -678,6 +648,7 @@ class TestStressScenarios:
     def test_massive_message_burst(self, temp_dir):
         """大量消息瞬间涌入"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=5000,
             context_content_retain_tokens=2000,
@@ -690,22 +661,19 @@ class TestStressScenarios:
 
         # 模拟500条消息瞬间涌入
         for i in range(500):
-            ledger.add_message(chat_id, make_long_message(
-                "user", base_time + i * 0.01, char_count=50
-            ))
+            ledger.add_message(chat_id, make_long_message("user", base_time + i * 0.01, char_count=50))
 
         messages = ledger.get_all_messages(chat_id)
         # 应该被压缩到合理范围
         assert len(messages) < 500, f"应被压缩，实际 {len(messages)}"
         assert len(messages) >= ledger.MIN_RETAIN_COUNT
         # 最新消息应该被保留
-        assert messages[-1]["timestamp"] == pytest.approx(
-            base_time + 499 * 0.01, abs=0.1
-        )
+        assert messages[-1]["timestamp"] == pytest.approx(base_time + 499 * 0.01, abs=0.1)
 
     def test_mixed_content_heavy_load(self, temp_dir):
         """混合内容（正文+工具+图片）重负载"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=3000,
             context_content_retain_tokens=1500,
@@ -720,33 +688,35 @@ class TestStressScenarios:
             ts = base_time + i
             if i % 5 == 0:
                 # 工具调用
-                ledger.add_message(chat_id, make_message(
-                    "assistant", f"调用工具", ts,
-                    tool_calls=[{"id": f"c_{i}", "function": {"name": "search"}}]
-                ))
+                ledger.add_message(
+                    chat_id,
+                    make_message(
+                        "assistant", "调用工具", ts, tool_calls=[{"id": f"c_{i}", "function": {"name": "search"}}]
+                    ),
+                )
             elif i % 5 == 1:
                 # 工具结果
-                ledger.add_message(chat_id, make_tool_result(
-                    f"搜索结果：这是一段很长的搜索结果内容" * 5, ts
-                ))
+                ledger.add_message(chat_id, make_tool_result("搜索结果：这是一段很长的搜索结果内容" * 5, ts))
             elif i % 5 == 2:
                 # 图片消息
-                ledger.add_message(chat_id, {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"看这张图{i}"},
-                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}}
-                    ],
-                    "timestamp": ts,
-                    "is_processed": False,
-                    "sender_name": f"用户{i % 10}",
-                })
+                ledger.add_message(
+                    chat_id,
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"看这张图{i}"},
+                            {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+                        ],
+                        "timestamp": ts,
+                        "is_processed": False,
+                        "sender_name": f"用户{i % 10}",
+                    },
+                )
             else:
                 # 普通消息
-                ledger.add_message(chat_id, make_long_message(
-                    "user" if i % 2 == 0 else "assistant",
-                    ts, char_count=150
-                ))
+                ledger.add_message(
+                    chat_id, make_long_message("user" if i % 2 == 0 else "assistant", ts, char_count=150)
+                )
 
         messages = ledger.get_all_messages(chat_id)
         assert len(messages) < 200
@@ -759,6 +729,7 @@ class TestStressScenarios:
     def test_multi_chat_isolation(self, temp_dir):
         """多会话压缩互不影响"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=1000,
             context_content_retain_tokens=400,
@@ -772,9 +743,7 @@ class TestStressScenarios:
         for chat_idx in range(3):
             chat_id = f"chat_{chat_idx}"
             for i in range(50):
-                ledger.add_message(chat_id, make_long_message(
-                    "user", base_time + chat_idx * 1000 + i, char_count=100
-                ))
+                ledger.add_message(chat_id, make_long_message("user", base_time + chat_idx * 1000 + i, char_count=100))
 
         # 验证每个会话独立压缩
         for chat_idx in range(3):
@@ -786,6 +755,7 @@ class TestStressScenarios:
     def test_empty_chat_no_crash(self, temp_dir):
         """空会话不崩溃"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(max_conversation_tokens=1000)
         ledger = ConversationLedger(config, temp_dir)
 
@@ -805,6 +775,7 @@ class TestStressScenarios:
     def test_single_message_chat(self, temp_dir):
         """只有一条消息的会话"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=100,
             context_content_retain_tokens=10,
@@ -813,9 +784,7 @@ class TestStressScenarios:
         ledger = ConversationLedger(config, temp_dir)
 
         chat_id = "single_msg"
-        ledger.add_message(chat_id, make_message(
-            "user", "唯一的消息", time.time()
-        ))
+        ledger.add_message(chat_id, make_message("user", "唯一的消息", time.time()))
 
         messages = ledger.get_all_messages(chat_id)
         assert len(messages) >= 1, "至少保留一条消息"
@@ -823,6 +792,7 @@ class TestStressScenarios:
     def test_all_tool_messages(self, temp_dir):
         """全部是工具消息的极端情况"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=500,
             context_content_retain_tokens=200,
@@ -835,14 +805,14 @@ class TestStressScenarios:
 
         for i in range(30):
             if i % 2 == 0:
-                ledger.add_message(chat_id, make_message(
-                    "assistant", f"调用", base_time + i,
-                    tool_calls=[{"id": f"c_{i}", "function": {"name": "t"}}]
-                ))
+                ledger.add_message(
+                    chat_id,
+                    make_message(
+                        "assistant", "调用", base_time + i, tool_calls=[{"id": f"c_{i}", "function": {"name": "t"}}]
+                    ),
+                )
             else:
-                ledger.add_message(chat_id, make_tool_result(
-                    f"结果{i}" * 20, base_time + i
-                ))
+                ledger.add_message(chat_id, make_tool_result(f"结果{i}" * 20, base_time + i))
 
         messages = ledger.get_all_messages(chat_id)
         # 不应崩溃，且至少保留最小数量
@@ -855,6 +825,7 @@ class TestTokenEstimation:
     def test_chinese_text_estimation(self, temp_dir):
         """中文文本Token估算"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(max_conversation_tokens=100000)
         ledger = ConversationLedger(config, temp_dir)
 
@@ -865,6 +836,7 @@ class TestTokenEstimation:
     def test_english_text_estimation(self, temp_dir):
         """英文文本Token估算"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(max_conversation_tokens=100000)
         ledger = ConversationLedger(config, temp_dir)
 
@@ -875,6 +847,7 @@ class TestTokenEstimation:
     def test_message_token_counting(self, temp_dir):
         """单条消息Token计数"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(max_conversation_tokens=100000)
         ledger = ConversationLedger(config, temp_dir)
 
@@ -885,6 +858,7 @@ class TestTokenEstimation:
     def test_image_message_token_counting(self, temp_dir):
         """图片消息Token计数"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(max_conversation_tokens=100000)
         ledger = ConversationLedger(config, temp_dir)
 
@@ -892,7 +866,7 @@ class TestTokenEstimation:
             "role": "user",
             "content": [
                 {"type": "text", "text": "看图"},
-                {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}}
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
             ],
             "timestamp": time.time(),
             "is_processed": False,
@@ -908,6 +882,7 @@ class TestCompressionTimestamp:
     def test_compression_updates_timestamp(self, temp_dir):
         """压缩后更新时间戳"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=500,
             context_content_retain_tokens=200,
@@ -920,9 +895,7 @@ class TestCompressionTimestamp:
 
         # 添加足够多的消息触发压缩
         for i in range(50):
-            ledger.add_message(chat_id, make_long_message(
-                "user", time.time() + i, char_count=80
-            ))
+            ledger.add_message(chat_id, make_long_message("user", time.time() + i, char_count=80))
 
         # 压缩后应记录时间戳
         assert chat_id in ledger._last_compression_time
@@ -931,6 +904,7 @@ class TestCompressionTimestamp:
     def test_subsequent_compression_updates_timestamp(self, temp_dir):
         """后续压缩更新时间戳"""
         from core.conversation_ledger import ConversationLedger
+
         config = MockConfigManager(
             max_conversation_tokens=500,
             context_content_retain_tokens=200,
@@ -942,9 +916,7 @@ class TestCompressionTimestamp:
 
         # 第一次压缩
         for i in range(50):
-            ledger.add_message(chat_id, make_long_message(
-                "user", time.time() + i, char_count=80
-            ))
+            ledger.add_message(chat_id, make_long_message("user", time.time() + i, char_count=80))
 
         first_ts = ledger._last_compression_time.get(chat_id, 0)
 
@@ -952,9 +924,7 @@ class TestCompressionTimestamp:
 
         # 第二次压缩
         for i in range(50):
-            ledger.add_message(chat_id, make_long_message(
-                "user", time.time() + 1000 + i, char_count=80
-            ))
+            ledger.add_message(chat_id, make_long_message("user", time.time() + 1000 + i, char_count=80))
 
         second_ts = ledger._last_compression_time.get(chat_id, 0)
         assert second_ts > first_ts, "后续压缩应更新时间戳"

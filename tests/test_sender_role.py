@@ -42,15 +42,11 @@ def test_extract_sender_role_from_object_and_unknown_values():
 def test_extract_event_sender_role_reads_raw_message():
     fd = _front_desk()
 
-    dict_raw = SimpleNamespace(
-        message_obj=SimpleNamespace(raw_message={"sender": {"role": "owner"}})
-    )
+    dict_raw = SimpleNamespace(message_obj=SimpleNamespace(raw_message={"sender": {"role": "owner"}}))
     assert fd._extract_event_sender_role(dict_raw) == "群主"
 
     obj_raw = SimpleNamespace(
-        message_obj=SimpleNamespace(
-            raw_message=SimpleNamespace(sender=SimpleNamespace(role="admin"))
-        )
+        message_obj=SimpleNamespace(raw_message=SimpleNamespace(sender=SimpleNamespace(role="admin")))
     )
     assert fd._extract_event_sender_role(obj_raw) == "管理"
 

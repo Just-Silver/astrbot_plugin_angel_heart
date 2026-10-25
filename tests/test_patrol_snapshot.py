@@ -67,9 +67,7 @@ async def test_snapshot_assistant_picks_earliest_expiry():
     dm = make_manager()
     async with dm._lock:
         # 先插一条长等待（created_at 更早，但到期晚）
-        dm._assistant[("chat:g:1", "u1")] = make_record(
-            "assistant", "chat:g:1", 100.0, sender_id="u1"
-        )
+        dm._assistant[("chat:g:1", "u1")] = make_record("assistant", "chat:g:1", 100.0, sender_id="u1")
         # 后插一条短等待（created_at 更晚，但到期更早）
         short = make_record("assistant", "chat:g:1", 0.5, sender_id="u2")
         dm._assistant[("chat:g:1", "u2")] = short

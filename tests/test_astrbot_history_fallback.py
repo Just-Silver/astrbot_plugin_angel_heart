@@ -36,7 +36,9 @@ def test_astrbot_history_fallback_keeps_tools_and_tool_calls():
     assert messages[0]["content"] == "保留1"
     assert messages[1]["role"] == "assistant"
     assert messages[1]["content"] == [{"type": "think", "think": "先想"}]
-    assert messages[1]["tool_calls"] == [{"id": "1", "type": "function", "function": {"name": "search", "arguments": "{}"}}]
+    assert messages[1]["tool_calls"] == [
+        {"id": "1", "type": "function", "function": {"name": "search", "arguments": "{}"}}
+    ]
     assert messages[1]["is_structured_toolcall"] is True
     assert messages[2]["role"] == "tool"
     assert messages[2]["content"] == "工具结果"

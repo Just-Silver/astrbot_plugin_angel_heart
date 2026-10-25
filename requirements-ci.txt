@@ -1,0 +1,12 @@
+# CI 专用依赖（运行时 requirements.txt 之外的测试与检查工具）
+# 安装顺序：pip install -r requirements.txt -r requirements-ci.txt
+pytest>=8.0.0
+# 测试用 @pytest.mark.asyncio 标注异步用例，缺该插件时全部报
+# "async def functions are not natively supported"
+pytest-asyncio>=0.24.0
+# web_api 的 quart 测试直接导入 quart，运行环境由 AstrBot 提供，CI 需自备
+quart>=0.19.0
+# 消息模型测试依赖 pydantic，同样由 AstrBot 运行环境提供
+pydantic>=2.0.0
+# 不锁版本，始终用最新，避免规则集落后于工具演进
+ruff

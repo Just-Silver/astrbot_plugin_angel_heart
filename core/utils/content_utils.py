@@ -3,6 +3,7 @@ AngelHeart 插件 - 内容处理相关工具函数
 """
 
 import re
+
 from markdown_it import MarkdownIt
 from mdit_plain.renderer import RendererPlain
 
@@ -50,16 +51,13 @@ def strip_reasoning_chain(text: str) -> str:
     """
     # 匹配 ...</think> XML 标签及其内容
     # 使用 re.DOTALL 使 . 匹配换行符，支持多行思维链
-    reasoning_pattern = re.compile(
-        r'[\s\S]*?</think>',
-        re.IGNORECASE | re.DOTALL
-    )
+    reasoning_pattern = re.compile(r"[\s\S]*?</think>", re.IGNORECASE | re.DOTALL)
 
     # 移除所有匹配的思维链内容
-    cleaned_text = reasoning_pattern.sub('', text)
+    cleaned_text = reasoning_pattern.sub("", text)
 
     # 清理可能留下的多余空行
-    cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text).strip()
+    cleaned_text = re.sub(r"\n\s*\n", "\n\n", cleaned_text).strip()
 
     return cleaned_text
 

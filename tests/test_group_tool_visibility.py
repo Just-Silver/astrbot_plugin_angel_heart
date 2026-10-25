@@ -10,8 +10,8 @@ from unittest.mock import MagicMock
 from astrbot_plugin_angel_heart.core.config_manager import ConfigManager
 from astrbot_plugin_angel_heart.core.conversation_ledger import ConversationLedger
 from astrbot_plugin_angel_heart.core.utils.context_utils import partition_dialogue, partition_dialogue_raw
-from astrbot_plugin_angel_heart.roles.front_desk import FrontDesk
 from astrbot_plugin_angel_heart.core.work_ledger import WorkLedger
+from astrbot_plugin_angel_heart.roles.front_desk import FrontDesk
 
 
 def _ledger(tmp_path, forgetting_timeout=86400, max_tokens=2000, content_retain=300, tool_retain=500):
@@ -26,7 +26,15 @@ def _ledger(tmp_path, forgetting_timeout=86400, max_tokens=2000, content_retain=
 
 
 def _msg(mid, role, content, ts, extra=None):
-    m = {"source_message_id": mid, "role": role, "content": content, "timestamp": ts, "sender_id": "u1", "sender_name": "红豆", "chat_id": "aiocqhttp:GroupMessage:10000"}
+    m = {
+        "source_message_id": mid,
+        "role": role,
+        "content": content,
+        "timestamp": ts,
+        "sender_id": "u1",
+        "sender_name": "红豆",
+        "chat_id": "aiocqhttp:GroupMessage:10000",
+    }
     if extra:
         m.update(extra)
     return m
@@ -38,7 +46,16 @@ class TestSecretaryVsAssistant:
         chat = "aiocqhttp:GroupMessage:10000"
         try:
             lg.add_message(chat, _msg("m1", "user", [{"type": "text", "text": "hi"}], 1000))
-            lg.add_message(chat, _msg("m2", "assistant", "call", 1001, extra={"tool_calls": [{"function": {"name": "angel_image_generate"}}]}))
+            lg.add_message(
+                chat,
+                _msg(
+                    "m2",
+                    "assistant",
+                    "call",
+                    1001,
+                    extra={"tool_calls": [{"function": {"name": "angel_image_generate"}}]},
+                ),
+            )
             lg.add_message(chat, _msg("m3", "tool", "path=/tmp/a.png", 1002))
             hist, recent, _ = partition_dialogue(lg, chat, "m3")
             assert "tool" not in [r["role"] for r in recent]
@@ -54,8 +71,22 @@ class TestSecretaryVsAssistant:
         chat = "aiocqhttp:GroupMessage:10000"
         try:
             lg.add_message(chat, _msg("u1", "user", [{"type": "text", "text": "画只猫"}], 1000))
-            lg.add_message(chat, _msg("a1", "assistant", "tool_call", 1001, extra={"tool_calls": [{"id": "c1", "function": {"name": "angel_image_generate", "arguments": "{}"}}]}))
-            lg.add_message(chat, _msg("t1", "tool", '{"images":[{"absolute_path":"/data/generated-images/20260904/abc.png"}]}', 1002))
+            lg.add_message(
+                chat,
+                _msg(
+                    "a1",
+                    "assistant",
+                    "tool_call",
+                    1001,
+                    extra={
+                        "tool_calls": [{"id": "c1", "function": {"name": "angel_image_generate", "arguments": "{}"}}]
+                    },
+                ),
+            )
+            lg.add_message(
+                chat,
+                _msg("t1", "tool", '{"images":[{"absolute_path":"/data/generated-images/20260904/abc.png"}]}', 1002),
+            )
             lg.add_message(chat, _msg("a2", "assistant", "好了", 1003))
             lg.add_message(chat, _msg("u2", "user", [{"type": "text", "text": "你刚才发的图路径是？"}], 1004))
             # 旧逻辑（压缩切片）看不到
@@ -75,7 +106,16 @@ class TestSecretaryVsAssistant:
         try:
             # 准备 ledger：两轮 + 工具
             lg.add_message(chat, _msg("u1", "user", [{"type": "text", "text": "画只猫"}], 1000))
-            lg.add_message(chat, _msg("a1", "assistant", "tool_call", 1001, extra={"tool_calls": [{"id": "c1", "function": {"name": "angel_image_generate"}}]}))
+            lg.add_message(
+                chat,
+                _msg(
+                    "a1",
+                    "assistant",
+                    "tool_call",
+                    1001,
+                    extra={"tool_calls": [{"id": "c1", "function": {"name": "angel_image_generate"}}]},
+                ),
+            )
             lg.add_message(chat, _msg("t1", "tool", "path /data/generated-images/20260904/abc.png", 1002))
             lg.add_message(chat, _msg("a2", "assistant", "好了", 1003))
             lg.add_message(chat, _msg("u2", "user", [{"type": "text", "text": "继续"}], 1004))
@@ -101,17 +141,29 @@ class TestSecretaryVsAssistant:
                 unified_msg_origin = chat
                 message_str = ""
                 message_obj = SimpleNamespace(message_id="u2")
+
                 def __init__(self):
-                    self._extras = {"angelheart_decision_context": {"recent_dialogue": [{"source_message_id": "u2"}], "historical_context": [], "boundary_message_id": "u2", "boundary_ts": 1004.0}}
-                def get_extra(self, k, d=None): return self._extras.get(k, d)
-                def set_extra(self, k, v): self._extras[k]=v
+                    self._extras = {
+                        "angelheart_decision_context": {
+                            "recent_dialogue": [{"source_message_id": "u2"}],
+                            "historical_context": [],
+                            "boundary_message_id": "u2",
+                            "boundary_ts": 1004.0,
+                        }
+                    }
+
+                def get_extra(self, k, d=None):
+                    return self._extras.get(k, d)
+
+                def set_extra(self, k, v):
+                    self._extras[k] = v
 
             event = E()
             # 应取到截至 u2 的 raw（含 t1），不含 u3
             recent, hist, _ = fd._get_decision_context_for_rewrite(chat, event)
-            assert any(r.get("source_message_id")=="u2" for r in recent)
-            assert not any(r.get("source_message_id")=="u3" for r in recent)
-            assert any(r["role"]=="tool" for r in recent)
+            assert any(r.get("source_message_id") == "u2" for r in recent)
+            assert not any(r.get("source_message_id") == "u3" for r in recent)
+            assert any(r["role"] == "tool" for r in recent)
         finally:
             lg.close()
 
@@ -124,15 +176,26 @@ class TestGroupOrganizeConditional:
             base = time.time()
             # 塞满正文触 token
             for i in range(20):
-                lg.add_message(chat, _msg(f"m{i}", "user", [{"type": "text", "text": "x"*200}], base + i))
+                lg.add_message(chat, _msg(f"m{i}", "user", [{"type": "text", "text": "x" * 200}], base + i))
             # 尾部工具
-            lg.add_message(chat, _msg("ta", "assistant", "c", base+100, extra={"tool_calls":[{"function":{"name":"angel_image_generate"}}]}))
-            lg.add_message(chat, _msg("tt", "tool", "tail tool result with path /data/generated-images/a.png", base+101))
+            lg.add_message(
+                chat,
+                _msg(
+                    "ta",
+                    "assistant",
+                    "c",
+                    base + 100,
+                    extra={"tool_calls": [{"function": {"name": "angel_image_generate"}}]},
+                ),
+            )
+            lg.add_message(
+                chat, _msg("tt", "tool", "tail tool result with path /data/generated-images/a.png", base + 101)
+            )
             lg._last_compression_time[chat] = time.time()  # 保证未超时
             assert not lg._is_forgetting_timeout(chat)
             lg.organize_context(chat, mode="group_rule")
             msgs = lg.get_all_messages(chat)
-            assert any(m["role"]=="tool" for m in msgs), "未超时应保留尾部工具"
+            assert any(m["role"] == "tool" for m in msgs), "未超时应保留尾部工具"
         finally:
             lg.close()
 
@@ -142,15 +205,17 @@ class TestGroupOrganizeConditional:
         try:
             base = time.time()
             for i in range(5):
-                lg.add_message(chat, _msg(f"m{i}", "user", [{"type":"text","text":"old"}], base+i))
-            lg.add_message(chat, _msg("ta", "assistant", "c", base+10, extra={"tool_calls":[{"function":{"name":"x"}}]}))
-            lg.add_message(chat, _msg("tt", "tool", "tool", base+11))
+                lg.add_message(chat, _msg(f"m{i}", "user", [{"type": "text", "text": "old"}], base + i))
+            lg.add_message(
+                chat, _msg("ta", "assistant", "c", base + 10, extra={"tool_calls": [{"function": {"name": "x"}}]})
+            )
+            lg.add_message(chat, _msg("tt", "tool", "tool", base + 11))
             # 人为超时
             lg._last_compression_time[chat] = base - 90000
             assert lg._is_forgetting_timeout(chat)
             lg.organize_context(chat, mode="group_rule")
             msgs = lg.get_all_messages(chat)
-            assert not any(m["role"]=="tool" for m in msgs), "超时应全清工具"
+            assert not any(m["role"] == "tool" for m in msgs), "超时应全清工具"
         finally:
             lg.close()
 
@@ -160,16 +225,18 @@ class TestGroupOrganizeConditional:
         try:
             base = time.time()
             for i in range(5):
-                lg.add_message(chat, _msg(f"m{i}", "user", [{"type":"text","text":"z"*50}], base+i))
-            lg.add_message(chat, _msg("ta", "assistant", "c", base+10, extra={"tool_calls":[{"function":{"name":"x"}}]}))
-            lg.add_message(chat, _msg("tt", "tool", "tool", base+11))
-            lg.add_message(chat, _msg("now", "user", [{"type":"text","text":"enter"}], base+20))
+                lg.add_message(chat, _msg(f"m{i}", "user", [{"type": "text", "text": "z" * 50}], base + i))
+            lg.add_message(
+                chat, _msg("ta", "assistant", "c", base + 10, extra={"tool_calls": [{"function": {"name": "x"}}]})
+            )
+            lg.add_message(chat, _msg("tt", "tool", "tool", base + 11))
+            lg.add_message(chat, _msg("now", "user", [{"type": "text", "text": "enter"}], base + 20))
             lg._last_compression_time[chat] = time.time()  # 未超时
-            lg.organize_on_group_enter(chat, keep_from_timestamp=base+20)
+            lg.organize_on_group_enter(chat, keep_from_timestamp=base + 20)
             msgs = lg.get_all_messages(chat)
-            assert not any(m["role"]=="tool" for m in msgs), "入场整理应全清"
+            assert not any(m["role"] == "tool" for m in msgs), "入场整理应全清"
             # 且只保留触发后
-            body = [m for m in msgs if m.get("kind")!="context_summary"]
-            assert all(m["timestamp"] >= base+20 for m in body)
+            body = [m for m in msgs if m.get("kind") != "context_summary"]
+            assert all(m["timestamp"] >= base + 20 for m in body)
         finally:
             lg.close()

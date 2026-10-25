@@ -8,18 +8,18 @@ AngelHeart插件 - 天使心智能群聊/私聊交互插件
 - 私聊：只缓存，主框架队列（无法向运行中子代理注入消息）
 """
 
-import time
 import json
 import os
+import time
 from typing import Any
 
-from astrbot.api.star import Star, Context, register
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.provider import ProviderRequest, LLMResponse
-from astrbot.core.star.register import register_on_agent_done
-from astrbot.core.star.star_tools import StarTools
+from astrbot.api.provider import LLMResponse, ProviderRequest
+from astrbot.api.star import Context, Star, register
 from astrbot.core.star.filter.command import CommandFilter
 from astrbot.core.star.filter.command_group import CommandGroupFilter
+from astrbot.core.star.register import register_on_agent_done
+from astrbot.core.star.star_tools import StarTools
 
 try:
     from astrbot.api import logger
@@ -27,20 +27,20 @@ except ImportError:
     import logging
 
     logger = logging.getLogger(__name__)
-from astrbot.core.message.components import Plain, At, AtAll, Reply, Poke
+from astrbot.core.message.components import At, AtAll, Plain, Poke, Reply
 
+from .core.angel_heart_context import AngelHeartContext
+from .core.chat_profile import ChatProfileStore
 from .core.config_manager import ConfigManager
 from .core.config_migration import run_migration
-from .roles.front_desk import FrontDesk
-from .roles.secretary import Secretary
+from .core.runtime_task_tracker import RuntimeTaskTracker, track_runtime_handler
 from .core.utils import strip_markdown, strip_period_before_newline
 from .core.utils.message_utils import (
     extract_completed_agent_messages,
     serialize_agent_run_message,
 )
-from .core.angel_heart_context import AngelHeartContext
-from .core.chat_profile import ChatProfileStore
-from .core.runtime_task_tracker import RuntimeTaskTracker, track_runtime_handler
+from .roles.front_desk import FrontDesk
+from .roles.secretary import Secretary
 from .tools.image_understanding import AngelDescribeImageTool
 
 # 在框架加载 schema 之前执行配置迁移
@@ -60,7 +60,13 @@ def _plugin_version() -> str:
     return "0.0.0"
 
 
-@register("astrbot_plugin_angel_heart", "kawayiYokami", "天使心秘书，让astrbot拥有极其聪明，有分寸的群聊介入，和极其完备的群聊上下文管理", _plugin_version(), "https://github.com/kawayiYokami/astrbot_plugin_angel_heart")
+@register(
+    "astrbot_plugin_angel_heart",
+    "kawayiYokami",
+    "天使心秘书，让astrbot拥有极其聪明，有分寸的群聊介入，和极其完备的群聊上下文管理",
+    _plugin_version(),
+    "https://github.com/kawayiYokami/astrbot_plugin_angel_heart",
+)
 class AngelHeartPlugin(Star):
     """AngelHeart插件 - 专注的智能回复员"""
 
@@ -83,10 +89,12 @@ class AngelHeartPlugin(Star):
 
         # -- 来源登记（见过的人群/私聊，供 WebUI 认群）--
         from .core.chat_sources import ChatSourcesStore
+
         self.chat_sources = ChatSourcesStore(plugin_data_dir)
 
         # -- 每群最近一次秘书决策（供 WebUI 状态栏）--
         from .core.last_decisions import LastDecisionStore
+
         self.last_decisions = LastDecisionStore(plugin_data_dir)
 
         # -- 创建 AngelHeartContext 全局上下文（包含 ConversationLedger）--
@@ -101,9 +109,7 @@ class AngelHeartPlugin(Star):
 
         # -- 角色实例 --
         # 创建秘书和前台，通过全局上下文传递依赖
-        self.secretary = Secretary(
-            self.config_manager, self.context, self.angel_context
-        )
+        self.secretary = Secretary(self.config_manager, self.context, self.angel_context)
         self.front_desk = FrontDesk(self.config_manager, self.angel_context)
         self.front_desk.chat_sources = self.chat_sources
         self.front_desk.last_decisions = self.last_decisions
@@ -114,6 +120,7 @@ class AngelHeartPlugin(Star):
         # -- 注册 WebUI API 路由（群聊独立配置管理页）--
         try:
             from .web_api import register_all_routes
+
             register_all_routes(
                 self.context,
                 self.profile_store,
@@ -138,9 +145,7 @@ class AngelHeartPlugin(Star):
         priority=-10,
     )
     @track_runtime_handler
-    async def smart_reply_handler(
-        self, event: AstrMessageEvent, *args: Any, **kwargs: Any
-    ) -> None:
+    async def smart_reply_handler(self, event: AstrMessageEvent, *args: Any, **kwargs: Any) -> None:
         """智能回复员 - 事件入口：处理缓存或在唤醒时清空缓存"""
 
         # 使用 _should_process 方法来判断是否需要处理此消息
@@ -153,9 +158,7 @@ class AngelHeartPlugin(Star):
 
     @filter.on_llm_request(priority=0)
     @track_runtime_handler
-    async def inject_oneshot_decision_on_llm_request(
-        self, event: AstrMessageEvent, req: ProviderRequest
-    ):
+    async def inject_oneshot_decision_on_llm_request(self, event: AstrMessageEvent, req: ProviderRequest):
         """读取本事件 angelheart_context，供日志与后续钩子使用（不写回 req）"""
         chat_id = event.unified_msg_origin
 
@@ -163,9 +166,7 @@ class AngelHeartPlugin(Star):
             try:
                 context = json.loads(event.angelheart_context)
                 if context.get("error"):
-                    logger.warning(
-                        f"AngelHeart[{chat_id}]: 上下文包含错误: {context['error']}"
-                    )
+                    logger.warning(f"AngelHeart[{chat_id}]: 上下文包含错误: {context['error']}")
 
                 chat_records = context.get("chat_records", [])
                 secretary_decision = context.get("secretary_decision", {})
@@ -175,19 +176,13 @@ class AngelHeartPlugin(Star):
                     f"决策: {secretary_decision.get('reply_strategy', '未知')}"
                 )
             except json.JSONDecodeError as e:
-                logger.warning(
-                    f"AngelHeart[{chat_id}]: 解析 angelheart_context JSON 失败: {e}"
-                )
+                logger.warning(f"AngelHeart[{chat_id}]: 解析 angelheart_context JSON 失败: {e}")
             except (AttributeError, KeyError, TypeError) as e:
-                logger.warning(
-                    f"AngelHeart[{chat_id}]: 处理 angelheart_context 时发生意外错误: {e}"
-                )
+                logger.warning(f"AngelHeart[{chat_id}]: 处理 angelheart_context 时发生意外错误: {e}")
 
     @filter.on_llm_request(priority=50)
     @track_runtime_handler
-    async def delegate_prompt_rewriting(
-        self, event: AstrMessageEvent, req: ProviderRequest
-    ):
+    async def delegate_prompt_rewriting(self, event: AstrMessageEvent, req: ProviderRequest):
         """将 Prompt 重写任务委托给 FrontDesk 处理"""
         chat_id = event.unified_msg_origin
 
@@ -199,24 +194,18 @@ class AngelHeartPlugin(Star):
 
         if self._is_private_chat(chat_id):
             if not self.config_manager.takeover_private_chat_context:
-                logger.debug(
-                    f"AngelHeart[{chat_id}]: 私聊上下文接管未启用，跳过请求体重写。"
-                )
+                logger.debug(f"AngelHeart[{chat_id}]: 私聊上下文接管未启用，跳过请求体重写。")
                 return
         else:
             if not self.config_manager.group_chat_enhancement:
-                logger.debug(
-                    f"AngelHeart[{chat_id}]: 群聊上下文接管未启用，跳过请求体重写。"
-                )
+                logger.debug(f"AngelHeart[{chat_id}]: 群聊上下文接管未启用，跳过请求体重写。")
                 return
 
         await self.front_desk.rewrite_prompt_for_llm(chat_id, event, req)
 
     @register_on_agent_done()
     @track_runtime_handler
-    async def capture_completed_agent_messages(
-        self, event: AstrMessageEvent, run_context: Any, response: LLMResponse
-    ):
+    async def capture_completed_agent_messages(self, event: AstrMessageEvent, run_context: Any, response: LLMResponse):
         """只在 Agent 完成后一次性记录本事件新增的完整 assistant/tool 链。"""
         chat_id = event.unified_msg_origin
         try:
@@ -255,13 +244,9 @@ class AngelHeartPlugin(Star):
                 return
 
             # 整条闭合链一次原子入账，避免并发请求读到半截工具链。
-            self.angel_context.conversation_ledger.add_messages(
-                chat_id, ledger_messages
-            )
+            self.angel_context.conversation_ledger.add_messages(chat_id, ledger_messages)
 
-            logger.debug(
-                f"AngelHeart[{chat_id}]: 已在完成点记录 {len(ledger_messages)} 条完整 assistant/tool 消息"
-            )
+            logger.debug(f"AngelHeart[{chat_id}]: 已在完成点记录 {len(ledger_messages)} 条完整 assistant/tool 消息")
         except Exception as e:
             logger.error(
                 f"AngelHeart[{chat_id}]: 完成点记录 assistant/tool 链失败: {e}",
@@ -277,9 +262,7 @@ class AngelHeartPlugin(Star):
         """
         self.secretary.llm_analyzer.reload_config(self.config_manager)
         self._whitelist_cache = self._prepare_whitelist()
-        logger.info(
-            f"AngelHeart: 配置已保存并即时生效。助理休息: {self.config_manager.waiting_time}秒"
-        )
+        logger.info(f"AngelHeart: 配置已保存并即时生效。助理休息: {self.config_manager.waiting_time}秒")
 
     def reload_config(self, new_config: dict):
         """重新加载配置"""
@@ -321,9 +304,7 @@ class AngelHeartPlugin(Star):
                         return True
             return False
         except Exception as e:
-            logger.warning(
-                f"AngelHeart[{event.unified_msg_origin}]: 判断上游指令事件失败: {e}"
-            )
+            logger.warning(f"AngelHeart[{event.unified_msg_origin}]: 判断上游指令事件失败: {e}")
             return False
 
     def _is_blocked_by_provider_wake_prefix(self, event: AstrMessageEvent) -> bool:
@@ -346,9 +327,7 @@ class AngelHeartPlugin(Star):
                 message_outline = ""
             return not message_outline.startswith(provider_wake_prefix)
         except Exception as e:
-            logger.warning(
-                f"AngelHeart[{event.unified_msg_origin}]: 判断额外聊天唤醒前缀拦截失败: {e}"
-            )
+            logger.warning(f"AngelHeart[{event.unified_msg_origin}]: 判断额外聊天唤醒前缀拦截失败: {e}")
             return False
 
     def _is_poke_event(self, event: AstrMessageEvent) -> bool:
@@ -367,9 +346,7 @@ class AngelHeartPlugin(Star):
                 return False
 
             if self._is_upstream_command_event(event):
-                logger.debug(
-                    f"AngelHeart[{chat_id}]: 检测到上游 command/skill 事件，已跳过。"
-                )
+                logger.debug(f"AngelHeart[{chat_id}]: 检测到上游 command/skill 事件，已跳过。")
                 return False
 
             blocked_by_provider_wake_prefix = self._is_blocked_by_provider_wake_prefix(event)
@@ -378,17 +355,13 @@ class AngelHeartPlugin(Star):
                 blocked_by_provider_wake_prefix,
             )
             if blocked_by_provider_wake_prefix:
-                logger.debug(
-                    f"AngelHeart[{chat_id}]: 未命中上游额外聊天唤醒前缀，保留聊天记录但跳过分析。"
-                )
+                logger.debug(f"AngelHeart[{chat_id}]: 未命中上游额外聊天唤醒前缀，保留聊天记录但跳过分析。")
 
             # 1. 检查是否为@消息，区分@自己和@全体成员
             if event.is_at_or_wake_command:
                 # 私聊天然是直接对话场景，不需要经过@自己的判定分支
                 if self._is_private_chat(chat_id):
-                    logger.debug(
-                        f"AngelHeart[{chat_id}]: 检测到私聊唤醒消息，允许进入缓存流程。"
-                    )
+                    logger.debug(f"AngelHeart[{chat_id}]: 检测到私聊唤醒消息，允许进入缓存流程。")
                     return True
 
                 # 预缓存ID以提高性能
@@ -405,10 +378,7 @@ class AngelHeartPlugin(Star):
                             has_at_all = True
                         elif isinstance(message, At) and str(message.qq) == self_id:
                             is_at_self = True
-                        elif (
-                            isinstance(message, Reply)
-                            and str(message.sender_id) == self_id
-                        ):
+                        elif isinstance(message, Reply) and str(message.sender_id) == self_id:
                             is_at_self = True
                 except (AttributeError, ValueError, KeyError) as e:
                     logger.warning(f"AngelHeart[{chat_id}]: 解析消息链异常: {e}")
@@ -422,13 +392,9 @@ class AngelHeartPlugin(Star):
 
                 # @自己 / 引用自己 / 普通唤醒非命令消息，统一放行给后续规则处理
                 if is_at_self:
-                    logger.debug(
-                        f"AngelHeart[{chat_id}]: 检测到@自己的消息，准备处理..."
-                    )
+                    logger.debug(f"AngelHeart[{chat_id}]: 检测到@自己的消息，准备处理...")
                 else:
-                    logger.debug(
-                        f"AngelHeart[{chat_id}]: 检测到普通唤醒非命令消息，交给后续规则处理。"
-                    )
+                    logger.debug(f"AngelHeart[{chat_id}]: 检测到普通唤醒非命令消息，交给后续规则处理。")
                 return True
 
             if event.get_sender_id() == event.get_self_id():
@@ -459,18 +425,14 @@ class AngelHeartPlugin(Star):
 
     @filter.on_decorating_result(priority=200)
     @track_runtime_handler
-    async def strip_markdown_on_decorating_result(
-        self, event: AstrMessageEvent, *args, **kwargs
-    ):
+    async def strip_markdown_on_decorating_result(self, event: AstrMessageEvent, *args, **kwargs):
         """
         在消息发送前，对消息链中的文本内容进行Markdown清洗，并检测错误信息。
         """
         chat_id = event.unified_msg_origin
         try:
             if self._is_upstream_command_event(event):
-                logger.debug(
-                    f"AngelHeart[{chat_id}]: 检测到是上游指令事件，跳过 Markdown 清洗。"
-                )
+                logger.debug(f"AngelHeart[{chat_id}]: 检测到是上游指令事件，跳过 Markdown 清洗。")
                 return
 
             logger.debug(f"AngelHeart[{chat_id}]: 开始清洗消息链中的Markdown格式...")
@@ -490,9 +452,7 @@ class AngelHeartPlugin(Star):
                         full_text_content += text_content
 
             if self._is_astrbot_error_message(full_text_content):
-                logger.info(
-                    f"AngelHeart[{chat_id}]: 检测到 AstrBot 错误信息，清空消息链。"
-                )
+                logger.info(f"AngelHeart[{chat_id}]: 检测到 AstrBot 错误信息，清空消息链。")
                 # 清空消息链，这样 RespondStage 就会跳过发送
                 result = event.get_result()
                 if result:
@@ -510,11 +470,7 @@ class AngelHeartPlugin(Star):
                                 cleaned_text = strip_markdown(original_text)
 
                                 # 只有在清洗结果有效且真正改变了内容时才替换
-                                if (
-                                    cleaned_text
-                                    and cleaned_text.strip()
-                                    and cleaned_text != original_text
-                                ):
+                                if cleaned_text and cleaned_text.strip() and cleaned_text != original_text:
                                     # 替换整个 Plain 组件对象，但保持其他组件不变
                                     message_chain[i] = Plain(text=cleaned_text)
                                     logger.debug(
@@ -522,9 +478,7 @@ class AngelHeartPlugin(Star):
                                     )
                                 # 如果清洗结果相同或为空，保持原组件不变
                             except (AttributeError, ValueError) as e:
-                                logger.warning(
-                                    f"AngelHeart[{chat_id}]: 文本清洗失败: {e}，保持原文本"
-                                )
+                                logger.warning(f"AngelHeart[{chat_id}]: 文本清洗失败: {e}，保持原文本")
             else:
                 logger.debug(f"AngelHeart[{chat_id}]: Markdown清洗已禁用，跳过清洗步骤。")
 
@@ -541,9 +495,7 @@ class AngelHeartPlugin(Star):
                                     f"AngelHeart[{chat_id}]: 已清理句末句号: '{original_text[:50]}...' -> '{cleaned_text[:50]}...'"
                                 )
 
-            await self.angel_context.debounce_manager.charge_reply_energy(
-                event, message_chain
-            )
+            await self.angel_context.debounce_manager.charge_reply_energy(event, message_chain)
             logger.debug(f"AngelHeart[{chat_id}]: 消息链中的Markdown格式清洗完成。")
         except Exception as e:
             logger.error(f"AngelHeart[{chat_id}]: strip_markdown_on_decorating_result 处理异常: {e}", exc_info=True)
@@ -566,16 +518,11 @@ class AngelHeartPlugin(Star):
             # 完成实际投递，但 result.chain 仍为空；此时使用 AstrBot 的
             # 统一发送事实标记，避免状态滞留并在回复后误发耐心消息。
             result = event.get_result()
-            has_sent_message = bool(
-                (result and result.chain)
-                or getattr(event, "_has_send_oper", False)
-            )
+            has_sent_message = bool((result and result.chain) or getattr(event, "_has_send_oper", False))
             if has_sent_message:
                 leave_reply_trigger = self.angel_context.debounce_manager.get_leave_reply_trigger(event)
                 try:
-                    await self.angel_context.handle_message_sent(
-                        chat_id, keep_not_present=bool(leave_reply_trigger)
-                    )
+                    await self.angel_context.handle_message_sent(chat_id, keep_not_present=bool(leave_reply_trigger))
                 except (AttributeError, RuntimeError) as e:
                     logger.warning(f"AngelHeart[{chat_id}]: 状态转换处理异常: {e}")
 
@@ -587,16 +534,10 @@ class AngelHeartPlugin(Star):
                         event,
                         chat_id,
                         cooldown_seconds=0.0,
-                        reason=(
-                            "leave_reply_sent"
-                            if leave_reply_trigger
-                            else "reply_sent"
-                        ),
+                        reason=("leave_reply_sent" if leave_reply_trigger else "reply_sent"),
                     )
                 except Exception as e:
-                    logger.warning(
-                        f"AngelHeart[{chat_id}]: 回复后兜底收口秘书单飞失败: {e}"
-                    )
+                    logger.warning(f"AngelHeart[{chat_id}]: 回复后兜底收口秘书单飞失败: {e}")
 
                 # 工作账本：本轮完成
                 try:
@@ -615,9 +556,7 @@ class AngelHeartPlugin(Star):
                         result_summary=preview or "已回复",
                     )
                 except Exception as e:
-                    logger.debug(
-                        f"AngelHeart[{chat_id}]: 更新工作账本完成状态失败: {e}"
-                    )
+                    logger.debug(f"AngelHeart[{chat_id}]: 更新工作账本完成状态失败: {e}")
             else:
                 logger.debug(f"AngelHeart[{chat_id}]: 未检测到实际消息发送，跳过状态转换")
                 try:
@@ -643,9 +582,7 @@ class AngelHeartPlugin(Star):
                         reason="empty_reply",
                     )
                 except Exception as e:
-                    logger.warning(
-                        f"AngelHeart[{chat_id}]: 空回复收口秘书调度失败: {e}"
-                    )
+                    logger.warning(f"AngelHeart[{chat_id}]: 空回复收口秘书调度失败: {e}")
         except Exception as e:
             logger.error(
                 f"AngelHeart[{chat_id}]: after_message_sent处理异常: {e}",
@@ -676,9 +613,7 @@ class AngelHeartPlugin(Star):
         """
         dispatch_id = ""
         if hasattr(event, "get_extra"):
-            dispatch_id = str(
-                event.get_extra("angelheart_secretary_dispatch_id", "") or ""
-            )
+            dispatch_id = str(event.get_extra("angelheart_secretary_dispatch_id", "") or "")
         if not dispatch_id:
             return False
         return await self.angel_context.debounce_manager.finish_secretary_dispatch(
@@ -704,9 +639,7 @@ class AngelHeartPlugin(Star):
                     for component in result.chain:
                         if hasattr(component, "text"):
                             text_parts.append(component.text)
-                        elif hasattr(component, "data") and isinstance(
-                            component.data, dict
-                        ):
+                        elif hasattr(component, "data") and isinstance(component.data, dict):
                             # 处理其他类型的组件
                             text_parts.append(str(component.data.get("text", "")))
                     return "".join(text_parts).strip()
@@ -716,9 +649,7 @@ class AngelHeartPlugin(Star):
                 return event.get_message_outline()
 
         except (AttributeError, KeyError) as e:
-            logger.warning(
-                f"AngelHeart[{event.unified_msg_origin}]: 提取发送消息内容时出错: {e}"
-            )
+            logger.warning(f"AngelHeart[{event.unified_msg_origin}]: 提取发送消息内容时出错: {e}")
 
         return ""
 
@@ -737,11 +668,7 @@ class AngelHeartPlugin(Star):
 
         # 检测 AstrBot 错误信息的特征
         text_lower = text_content.lower()
-        return (
-            "astrbot 请求失败" in text_lower
-            and "错误类型:" in text_lower
-            and "错误信息:" in text_lower
-        )
+        return "astrbot 请求失败" in text_lower and "错误类型:" in text_lower and "错误信息:" in text_lower
 
     async def _cleanup_all_waiting_resources(self):
         """清理插件创建的全部后台任务、运行态内存与持久连接。"""

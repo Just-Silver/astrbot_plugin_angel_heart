@@ -16,8 +16,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class WorkItem:
     ended_at: float = 0.0
     kind: str = ""  # assistant / secretary / private 等
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "work_id": self.work_id,
             "chat_id": self.chat_id,
@@ -59,9 +59,9 @@ class WorkLedger:
         self,
         retain_finished: int = 8,
         running_timeout: float = 300.0,
-        time_func: Optional[Callable[[], float]] = None,
+        time_func: Callable[[], float] | None = None,
     ):
-        self._items: Dict[str, Dict[str, WorkItem]] = {}
+        self._items: dict[str, dict[str, WorkItem]] = {}
         self.retain_finished = max(1, int(retain_finished))
         # running 超时自动失效：防止 complete_work 漏触发（如流式回复/主脑失败）
         # 导致孤儿 running 永久阻断 assistant_busy 门闩。<=0 表示不启用。
@@ -108,16 +108,13 @@ class WorkLedger:
             self._trim(chat_id)
         return item
 
-    def _expire_stale_running(self, bucket: Dict[str, WorkItem]) -> None:
+    def _expire_stale_running(self, bucket: dict[str, WorkItem]) -> None:
         """把超时未收口的 running 工作惰性标记为 failed。"""
         if self.running_timeout <= 0:
             return
         now = self._time()
         for item in bucket.values():
-            if (
-                item.status == "running"
-                and (now - item.started_at) >= self.running_timeout
-            ):
+            if item.status == "running" and (now - item.started_at) >= self.running_timeout:
                 item.status = "failed"
                 item.result_summary = "运行超时自动关闭"
                 item.ended_at = now
@@ -134,7 +131,7 @@ class WorkLedger:
         *,
         status: str = "done",
         result_summary: str = "",
-    ) -> Optional[WorkItem]:
+    ) -> WorkItem | None:
         chat_id = str(chat_id or "")
         work_id = str(work_id or "")
         with self._lock:
@@ -148,13 +145,13 @@ class WorkLedger:
             self._trim(chat_id)
         return item
 
-    def get_active_works(self, chat_id: str) -> List[WorkItem]:
+    def get_active_works(self, chat_id: str) -> list[WorkItem]:
         with self._lock:
             bucket = self._items.get(str(chat_id or "")) or {}
             self._expire_stale_running(bucket)
             return [w for w in bucket.values() if w.status == "running"]
 
-    def get_recent_works(self, chat_id: str, limit: int = 8) -> List[WorkItem]:
+    def get_recent_works(self, chat_id: str, limit: int = 8) -> list[WorkItem]:
         with self._lock:
             bucket = self._items.get(str(chat_id or "")) or {}
             self._expire_stale_running(bucket)
@@ -190,24 +187,17 @@ class WorkLedger:
                 tag = status_cn
                 if w.status == "running":
                     others_running.append(w)
-            line = (
-                f"- [{tag}] 触发锚点={w.trigger_message_id or '未知'}；"
-                f"任务={w.trigger_summary}"
-            )
+            line = f"- [{tag}] 触发锚点={w.trigger_message_id or '未知'}；任务={w.trigger_summary}"
             if w.result_summary:
                 line += f"；结果={w.result_summary}"
             lines.append(line)
 
         if current and current.status == "running":
-            lines.append(
-                f"本轮待处理：{current.trigger_summary}。这是当前事件对应的工作，可以继续决策。"
-            )
+            lines.append(f"本轮待处理：{current.trigger_summary}。这是当前事件对应的工作，可以继续决策。")
 
         if others_running:
             names = "；".join(w.trigger_summary for w in others_running)
-            lines.append(
-                f"助理正在处理：{names}。不要让助理处理重复的问题。"
-            )
+            lines.append(f"助理正在处理：{names}。不要让助理处理重复的问题。")
         elif not (current and current.status == "running"):
             lines.append("当前没有运行中的助理工作。")
         return "\n".join(lines)
@@ -215,9 +205,7 @@ class WorkLedger:
     def format_for_assistant(self, chat_id: str, current_work_id: str = "") -> str:
         """为主脑构建当前工作之外的临时账本提醒。"""
         other_works = [
-            work
-            for work in self.get_recent_works(chat_id)
-            if not current_work_id or work.work_id != current_work_id
+            work for work in self.get_recent_works(chat_id) if not current_work_id or work.work_id != current_work_id
         ]
         if not other_works:
             return "工作账本：当前没有其他已登记工作。"
@@ -229,10 +217,7 @@ class WorkLedger:
                 "done": "已完成",
                 "failed": "失败",
             }.get(work.status, work.status)
-            line = (
-                f"- [{status_cn}] 触发锚点={work.trigger_message_id or '未知'}；"
-                f"任务={work.trigger_summary}"
-            )
+            line = f"- [{status_cn}] 触发锚点={work.trigger_message_id or '未知'}；任务={work.trigger_summary}"
             if work.result_summary:
                 line += f"；结果={work.result_summary}"
             lines.append(line)

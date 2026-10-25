@@ -9,7 +9,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from astrbot.core.message.components import At, Plain, Poke
 
 
@@ -91,7 +90,5 @@ class TestPokeEntranceIgnore:
 
     def test_at_self_event_still_processed(self):
         plugin = _plugin()
-        event = _Event(
-            chain=[At(qq="10000")], outline="[At:10000]", message_str="", is_at=True
-        )
+        event = _Event(chain=[At(qq="10000")], outline="[At:10000]", message_str="", is_at=True)
         assert plugin._should_process(event) is True

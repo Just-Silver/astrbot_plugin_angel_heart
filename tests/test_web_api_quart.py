@@ -33,6 +33,7 @@ def api_app(tmp_path):
     fake = FakeContext()
 
     import web_api as web_api_module
+
     web_api_module.register_all_routes(fake, store, manager, ledger)
 
     app = Quart(__name__)
@@ -50,18 +51,15 @@ def make_app_with_chat_sources(tmp_path):
     from core.chat_sources import ChatSourcesStore
 
     store = ChatProfileStore(str(tmp_path))
-    manager = ConfigManager(
-        {"access_control": {"chat_ids": ["1051472372", "830624502", "999000111"]}}
-    )
+    manager = ConfigManager({"access_control": {"chat_ids": ["1051472372", "830624502", "999000111"]}})
     ledger = type("Ledger", (), {"get_all_chat_ids": staticmethod(lambda: [])})()
     sources = ChatSourcesStore(str(tmp_path))
-    sources.record(
-        "default:GroupMessage:1051472372", "zlb米游剧情AI工具测试群", "group"
-    )
+    sources.record("default:GroupMessage:1051472372", "zlb米游剧情AI工具测试群", "group")
     sources.record("default:GroupMessage:830624502", "绝区零&一条龙开发社群", "group")
     fake = FakeContext()
 
     import web_api as web_api_module
+
     web_api_module.register_all_routes(fake, store, manager, ledger, chat_sources=sources)
 
     app = Quart(__name__)
@@ -74,7 +72,6 @@ def make_app_with_chat_sources(tmp_path):
 @pytest.mark.asyncio
 async def test_list_chats_dedup_plain_id_vs_unified_origin(tmp_path):
     """同一群同时以纯群号（白名单）与完整 origin（来源登记）出现时只保留一条。"""
-    from quart import Quart
 
     app = make_app_with_chat_sources(tmp_path)
     client = app.test_client()
@@ -234,8 +231,12 @@ async def test_chat_status_merges_runtime_state(tmp_path):
 
     fake = FakeContext()
     import web_api as web_api_module
+
     web_api_module.register_all_routes(
-        fake, store, manager, ledger,
+        fake,
+        store,
+        manager,
+        ledger,
         chat_sources=sources,
         status_transition_manager=FakeStatusManager(),
         debounce_manager=FakeDebounce(),
@@ -291,8 +292,12 @@ async def test_chat_status_observation_timeout_display(tmp_path):
 
     fake = FakeContext()
     import web_api as web_api_module
+
     web_api_module.register_all_routes(
-        fake, store, manager, ledger,
+        fake,
+        store,
+        manager,
+        ledger,
         chat_sources=sources,
         status_transition_manager=FakeStatusManager(),
         debounce_manager=FakeDebounce(),
@@ -318,7 +323,10 @@ async def test_chat_status_observation_timeout_display(tmp_path):
 
     fake2 = FakeContext()
     web_api_module.register_all_routes(
-        fake2, store, manager, ledger,
+        fake2,
+        store,
+        manager,
+        ledger,
         chat_sources=sources,
         status_transition_manager=FakeStatusManagerExpired(),
         debounce_manager=FakeDebounce(),

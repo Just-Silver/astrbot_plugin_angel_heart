@@ -2,7 +2,6 @@
 
 import time
 from enum import Enum
-from typing import Dict, Optional, Tuple
 
 try:
     from astrbot.api import logger
@@ -90,9 +89,7 @@ class StatusChecker:
 
             # 旧兼容状态不属于现行状态机，遇到时直接转为不在场
             if current_status == AngelHeartStatus.GETTING_FAMILIAR:
-                logger.warning(
-                    f"AngelHeart[{chat_id}]: 旧兼容状态出现在状态判断中，直接转为不在场"
-                )
+                logger.warning(f"AngelHeart[{chat_id}]: 旧兼容状态出现在状态判断中，直接转为不在场")
                 return AngelHeartStatus.NOT_PRESENT
 
             # 旧兼容状态不再作为进场条件：离场时只有主动呼唤才可进场
@@ -103,7 +100,7 @@ class StatusChecker:
             # 出错时返回安全状态
             return AngelHeartStatus.NOT_PRESENT
 
-    def _get_latest_message(self, chat_id: str) -> Optional[Dict]:
+    def _get_latest_message(self, chat_id: str) -> dict | None:
         """获取最新消息"""
         try:
             ledger = self.angel_context.conversation_ledger
@@ -116,7 +113,7 @@ class StatusChecker:
             logger.warning(f"AngelHeart[{chat_id}]: 获取最新消息失败: {e}")
             return None
 
-    def _get_latest_user_message(self, chat_id: str) -> Optional[Dict]:
+    def _get_latest_user_message(self, chat_id: str) -> dict | None:
         """获取最新的用户消息（过滤 assistant/tool/system）"""
         try:
             ledger = self.angel_context.conversation_ledger
@@ -166,7 +163,7 @@ class StatusChecker:
             logger.warning(f"AngelHeart[{chat_id}]: 扫描@自己消息失败: {e}")
             return False
 
-    def _extract_message_content(self, message: Dict) -> str:
+    def _extract_message_content(self, message: dict) -> str:
         """提取消息内容"""
         if not message:
             return ""
@@ -207,7 +204,7 @@ class StatusChecker:
             logger.debug(f"AngelHeart[{chat_id}]: 检查被点名状态失败: {e}")
             return False
 
-    def _message_has_alias_hit(self, message: Dict, chat_id: str) -> bool:
+    def _message_has_alias_hit(self, message: dict, chat_id: str) -> bool:
         """读取消息 metadata 中的 alias 命中；旧消息回退到 body_text。"""
         if not isinstance(message, dict):
             return False
@@ -255,11 +252,7 @@ class StatusChecker:
                     cls_name = component.__class__.__name__
                     # 引用自己发的消息视为点名（与 main._should_process 口径一致）
                     sender_id = getattr(component, "sender_id", None)
-                    if (
-                        sender_id is not None
-                        and str(sender_id) == self_id
-                        and "Reply" in cls_name
-                    ):
+                    if sender_id is not None and str(sender_id) == self_id and "Reply" in cls_name:
                         return True
                     qq = getattr(component, "qq", None)
                     if qq is None:
@@ -294,10 +287,7 @@ class StatusChecker:
     def _alias_detection_enabled(self, chat_id: str) -> bool:
         """点名昵称检测是否启用。"""
         cm = self.config_manager.for_chat(chat_id)
-        return bool(
-            cm.enter_on_mention_only
-            or cm.force_reply_when_summoned
-        )
+        return bool(cm.enter_on_mention_only or cm.force_reply_when_summoned)
 
     def _detect_wake_word(self, message_content: str, chat_id: str) -> bool:
         """检测正文中是否包含点名昵称（大小写不敏感）。"""
@@ -318,15 +308,9 @@ class StatusChecker:
             if self.angel_context.is_leave_reply_in_cooldown(chat_id):
                 return ""
             cm = self.config_manager.for_chat(chat_id)
-            if (
-                cm.leave_echo_reply
-                and self._detect_echo_chamber(chat_id)
-            ):
+            if cm.leave_echo_reply and self._detect_echo_chamber(chat_id):
                 return "echo_chamber"
-            if (
-                cm.leave_dense_reply
-                and self._detect_dense_conversation(chat_id)
-            ):
+            if cm.leave_dense_reply and self._detect_dense_conversation(chat_id):
                 return "dense_conversation"
         except Exception as e:
             logger.debug(f"AngelHeart[{chat_id}]: 离场应答检测失败: {e}")
@@ -341,9 +325,7 @@ class StatusChecker:
         """
         try:
             # 直接从 ConversationLedger 获取最近消息
-            all_messages = self.angel_context.conversation_ledger.get_all_messages(
-                chat_id
-            )
+            all_messages = self.angel_context.conversation_ledger.get_all_messages(chat_id)
             if len(all_messages) < 3:
                 return False
 
@@ -366,11 +348,7 @@ class StatusChecker:
                 content = msg.get("content", "")
                 if isinstance(content, list):
                     # 检查是否包含图片
-                    has_image = any(
-                        item.get("type") == "image_url"
-                        for item in content
-                        if isinstance(item, dict)
-                    )
+                    has_image = any(item.get("type") == "image_url" for item in content if isinstance(item, dict))
                     if has_image:
                         continue  # 跳过包含图片的消息
 
@@ -394,9 +372,7 @@ class StatusChecker:
             # 检查是否有内容出现次数达到阈值
             for content, count in content_count.items():
                 if count >= threshold:
-                    logger.debug(
-                        f"AngelHeart[{chat_id}]: 检测到复读行为 - 内容: '{content}', 出现次数: {count}"
-                    )
+                    logger.debug(f"AngelHeart[{chat_id}]: 检测到复读行为 - 内容: '{content}', 出现次数: {count}")
                     return True
 
             return False
@@ -414,9 +390,7 @@ class StatusChecker:
         """
         try:
             # 直接从 ConversationLedger 获取消息
-            all_messages = self.angel_context.conversation_ledger.get_all_messages(
-                chat_id
-            )
+            all_messages = self.angel_context.conversation_ledger.get_all_messages(chat_id)
 
             # 获取配置参数
             cm = self.config_manager.for_chat(chat_id)
@@ -471,11 +445,9 @@ class StatusTransitionManager:
         self.angel_context = angel_context
 
         # 状态持续时间跟踪：chat_id -> (status, start_time)
-        self.status_start_times: Dict[str, Tuple[AngelHeartStatus, float]] = {}
+        self.status_start_times: dict[str, tuple[AngelHeartStatus, float]] = {}
 
-    async def transition_to_status(
-        self, chat_id: str, new_status: AngelHeartStatus, reason: str = ""
-    ):
+    async def transition_to_status(self, chat_id: str, new_status: AngelHeartStatus, reason: str = ""):
         """
         状态转换
 
@@ -532,7 +504,7 @@ class StatusTransitionManager:
         except Exception:
             return 0.0
 
-    def get_status_summary(self, chat_id: str) -> Dict:
+    def get_status_summary(self, chat_id: str) -> dict:
         """
         获取状态摘要
 

@@ -13,10 +13,10 @@ import os
 import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # 模板字段白名单：只允许六类分组内的键写入，拒绝未知键防脏数据。
-TEMPLATE_GROUPS: Dict[str, Dict[str, Any]] = {
+TEMPLATE_GROUPS: dict[str, dict[str, Any]] = {
     "personality": {
         "ai_self_identity": None,
         "reply_strategy_guide": None,
@@ -66,9 +66,9 @@ TEMPLATE_GROUPS: Dict[str, Dict[str, Any]] = {
 STORE_FILE_NAME = "chat_profiles.json"
 
 
-def filter_template_config(config: Optional[Dict]) -> Dict:
+def filter_template_config(config: dict | None) -> dict:
     """只保留六类分组内的字段，忽略未知键。"""
-    result: Dict = {}
+    result: dict = {}
     if not isinstance(config, dict):
         return result
     for group, keys in TEMPLATE_GROUPS.items():
@@ -88,8 +88,8 @@ class ChatProfileStore:
         self._data_dir = data_dir
         self._file_path = os.path.join(data_dir, STORE_FILE_NAME)
         self._lock = threading.Lock()
-        self._templates: Dict[str, Dict] = {}
-        self._bindings: Dict[str, str] = {}
+        self._templates: dict[str, dict] = {}
+        self._bindings: dict[str, str] = {}
         self._loaded = False
 
     # ---------- 持久化 ----------
@@ -97,10 +97,10 @@ class ChatProfileStore:
     def _ensure_loaded(self) -> None:
         if self._loaded:
             return
-        data: Dict = {}
+        data: dict = {}
         if os.path.isfile(self._file_path):
             try:
-                with open(self._file_path, "r", encoding="utf-8") as f:
+                with open(self._file_path, encoding="utf-8") as f:
                     data = json.load(f)
             except (json.JSONDecodeError, OSError, TypeError):
                 data = {}
@@ -111,9 +111,7 @@ class ChatProfileStore:
             else {}
         )
         bindings = data.get("bindings", {})
-        self._bindings = (
-            {str(k): str(v) for k, v in bindings.items()} if isinstance(bindings, dict) else {}
-        )
+        self._bindings = {str(k): str(v) for k, v in bindings.items()} if isinstance(bindings, dict) else {}
         self._loaded = True
 
     def save(self) -> None:
@@ -137,7 +135,7 @@ class ChatProfileStore:
 
     # ---------- 模板 CRUD ----------
 
-    def list_templates(self) -> List[Dict]:
+    def list_templates(self) -> list[dict]:
         with self._lock:
             self._ensure_loaded()
             return [
@@ -148,12 +146,10 @@ class ChatProfileStore:
                     "created_at": t.get("created_at", 0),
                     "updated_at": t.get("updated_at", 0),
                 }
-                for t in sorted(
-                    self._templates.values(), key=lambda x: x.get("created_at", 0)
-                )
+                for t in sorted(self._templates.values(), key=lambda x: x.get("created_at", 0))
             ]
 
-    def get_template(self, template_id: str) -> Optional[Dict]:
+    def get_template(self, template_id: str) -> dict | None:
         with self._lock:
             self._ensure_loaded()
             template = self._templates.get(template_id)
@@ -168,7 +164,7 @@ class ChatProfileStore:
                 "config": template.get("config", {}),
             }
 
-    def get_template_config(self, template_id: str) -> Optional[Dict]:
+    def get_template_config(self, template_id: str) -> dict | None:
         template = self.get_template(template_id)
         return template["config"] if template else None
 
@@ -176,8 +172,8 @@ class ChatProfileStore:
         self,
         name: str,
         description: str = "",
-        config: Optional[Dict] = None,
-    ) -> Dict:
+        config: dict | None = None,
+    ) -> dict:
         now = self._now()
         template = {
             "id": self._new_id(),
@@ -193,7 +189,7 @@ class ChatProfileStore:
             self.save()
         return template
 
-    def update_template(self, template_id: str, patch: Dict) -> Optional[Dict]:
+    def update_template(self, template_id: str, patch: dict) -> dict | None:
         with self._lock:
             self._ensure_loaded()
             template = self._templates.get(template_id)
@@ -216,11 +212,7 @@ class ChatProfileStore:
                 return False
             del self._templates[template_id]
             # 级联解绑引用该模板的群聊
-            self._bindings = {
-                chat_id: tid
-                for chat_id, tid in self._bindings.items()
-                if tid != template_id
-            }
+            self._bindings = {chat_id: tid for chat_id, tid in self._bindings.items() if tid != template_id}
             self.save()
             return True
 
@@ -250,7 +242,7 @@ class ChatProfileStore:
             self._ensure_loaded()
             return self._bindings.get(self._resolve_key(chat_id), "")
 
-    def list_bindings(self) -> List[Dict]:
+    def list_bindings(self) -> list[dict]:
         with self._lock:
             self._ensure_loaded()
             return [
@@ -295,13 +287,11 @@ class ChatProfileStore:
         for bound in self._bindings:
             if self._is_private_origin(bound):
                 continue
-            if self._suffix_key(bound) == raw or (
-                suffix and self._suffix_key(bound) == suffix
-            ):
+            if self._suffix_key(bound) == raw or (suffix and self._suffix_key(bound) == suffix):
                 return bound
         return raw
 
-    def resolve_override(self, chat_id: str) -> Optional[Dict]:
+    def resolve_override(self, chat_id: str) -> dict | None:
         """返回该群聊绑定模板的覆盖配置；未绑定或模板缺失时返回 None。
 
         兼容两种绑定 key：完整 unified_msg_origin（如 aiocqhttp:GroupMessage:1）
@@ -320,11 +310,11 @@ class ChatProfileStore:
     # ---------- 工具 ----------
 
     @staticmethod
-    def template_from_global(config_manager) -> Dict:
+    def template_from_global(config_manager) -> dict:
         """从全局配置提取六类字段，作为新建模板的初始值。"""
-        result: Dict = {}
+        result: dict = {}
         for group, keys in TEMPLATE_GROUPS.items():
-            group_data: Dict = {}
+            group_data: dict = {}
             for key in keys:
                 try:
                     value = getattr(config_manager, key)

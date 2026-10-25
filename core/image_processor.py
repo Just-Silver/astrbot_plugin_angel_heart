@@ -1,12 +1,16 @@
-import aiohttp
 import base64
 import io
+
+import aiohttp
 from PIL import Image
+
 try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
+
 
 class ImageProcessor:
     """图片处理器 - 负责异步下载和转换图片为JPEG格式"""
@@ -32,16 +36,16 @@ class ImageProcessor:
                             img = Image.open(io.BytesIO(image_data))
 
                             # 转换为RGB模式（处理RGBA、灰度等格式）
-                            if img.mode in ('RGBA', 'LA', 'P'):
-                                img = img.convert('RGB')
+                            if img.mode in ("RGBA", "LA", "P"):
+                                img = img.convert("RGB")
 
                             # 保存为JPEG到内存
                             output = io.BytesIO()
-                            img.save(output, format='JPEG', quality=85)
+                            img.save(output, format="JPEG", quality=85)
                             jpeg_data = output.getvalue()
 
                             # 转换为Base64
-                            base64_encoded = base64.b64encode(jpeg_data).decode('utf-8')
+                            base64_encoded = base64.b64encode(jpeg_data).decode("utf-8")
 
                             # 统一使用JPEG MIME类型
                             data_url = f"data:image/jpeg;base64,{base64_encoded}"
@@ -52,7 +56,7 @@ class ImageProcessor:
                         except Exception as e:
                             logger.warning(f"PIL图片处理失败: {e}, URL: {url}")
                             # PIL处理失败时，尝试直接编码原始数据
-                            base64_encoded = base64.b64encode(image_data).decode('utf-8')
+                            base64_encoded = base64.b64encode(image_data).decode("utf-8")
                             return f"data:image/jpeg;base64,{base64_encoded}"
                     else:
                         logger.warning(f"图片下载失败，状态码: {resp.status}, URL: {url}")

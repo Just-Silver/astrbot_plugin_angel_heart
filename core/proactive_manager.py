@@ -4,15 +4,16 @@ AngelHeart 插件 - 主动应答管理器
 提供主动应答功能的统一接口，支持插件化扩展自定义主动应答逻辑。
 """
 
-import time
 import asyncio
-from typing import Dict, Optional, Callable
+import time
+from collections.abc import Callable
 from enum import Enum
 
 try:
     from astrbot.api import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 from .angel_heart_status import AngelHeartStatus
@@ -20,8 +21,9 @@ from .angel_heart_status import AngelHeartStatus
 
 class ProactiveTriggerType(Enum):
     """主动触发类型枚举"""
+
     IMMEDIATE = "immediate"  # 立即触发
-    DELAYED = "delayed"     # 延迟触发
+    DELAYED = "delayed"  # 延迟触发
     SCHEDULED = "scheduled"  # 定时触发
 
 
@@ -35,9 +37,9 @@ class ProactiveRequest:
         strategy: str,
         topic: str,
         delay_seconds: float = 0,
-        scheduled_time: Optional[float] = None,
-        context_data: Optional[Dict] = None,
-        callback: Optional[Callable] = None
+        scheduled_time: float | None = None,
+        context_data: dict | None = None,
+        callback: Callable | None = None,
     ):
         """
         初始化主动应答请求
@@ -61,7 +63,7 @@ class ProactiveRequest:
         self.context_data = context_data or {}
         self.callback = callback
         self.created_at = time.time()
-        self.task: Optional[asyncio.Task] = None
+        self.task: asyncio.Task | None = None
 
 
 class ProactiveManager:
@@ -77,10 +79,10 @@ class ProactiveManager:
         self.angel_context = angel_context
 
         # 活跃的主动应答任务
-        self.active_tasks: Dict[str, ProactiveRequest] = {}
+        self.active_tasks: dict[str, ProactiveRequest] = {}
 
         # 自定义触发器注册表
-        self.custom_triggers: Dict[str, Callable] = {}
+        self.custom_triggers: dict[str, Callable] = {}
 
         # 锁保护
         self._lock = asyncio.Lock()
@@ -90,8 +92,8 @@ class ProactiveManager:
         chat_id: str,
         strategy: str,
         topic: str,
-        context_data: Optional[Dict] = None,
-        callback: Optional[Callable] = None
+        context_data: dict | None = None,
+        callback: Callable | None = None,
     ) -> bool:
         """
         立即触发主动应答
@@ -120,7 +122,7 @@ class ProactiveManager:
                 strategy=strategy,
                 topic=topic,
                 context_data=context_data,
-                callback=callback
+                callback=callback,
             )
 
             # 立即执行
@@ -137,8 +139,8 @@ class ProactiveManager:
         strategy: str,
         topic: str,
         delay_seconds: float,
-        context_data: Optional[Dict] = None,
-        callback: Optional[Callable] = None
+        context_data: dict | None = None,
+        callback: Callable | None = None,
     ) -> bool:
         """
         延迟触发主动应答
@@ -167,20 +169,16 @@ class ProactiveManager:
                     topic=topic,
                     delay_seconds=delay_seconds,
                     context_data=context_data,
-                    callback=callback
+                    callback=callback,
                 )
 
                 # 创建异步任务
-                request.task = asyncio.create_task(
-                    self._delayed_handler(request)
-                )
+                request.task = asyncio.create_task(self._delayed_handler(request))
 
                 # 注册任务
                 self.active_tasks[chat_id] = request
 
-                logger.info(
-                    f"AngelHeart[{chat_id}]: 已安排延迟主动应答，{delay_seconds}秒后执行"
-                )
+                logger.info(f"AngelHeart[{chat_id}]: 已安排延迟主动应答，{delay_seconds}秒后执行")
                 return True
 
         except Exception as e:
@@ -193,8 +191,8 @@ class ProactiveManager:
         strategy: str,
         topic: str,
         scheduled_time: float,
-        context_data: Optional[Dict] = None,
-        callback: Optional[Callable] = None
+        context_data: dict | None = None,
+        callback: Callable | None = None,
     ) -> bool:
         """
         定时触发主动应答
@@ -226,13 +224,11 @@ class ProactiveManager:
                     topic=topic,
                     scheduled_time=scheduled_time,
                     context_data=context_data,
-                    callback=callback
+                    callback=callback,
                 )
 
                 # 创建异步任务
-                request.task = asyncio.create_task(
-                    self._scheduled_handler(request, delay)
-                )
+                request.task = asyncio.create_task(self._scheduled_handler(request, delay))
 
                 # 注册任务
                 self.active_tasks[chat_id] = request
@@ -268,7 +264,7 @@ class ProactiveManager:
             del self.custom_triggers[name]
             logger.info(f"AngelHeart: 已注销自定义触发器 '{name}'")
 
-    async def call_custom_trigger(self, name: str, chat_id: str, context_data: Optional[Dict] = None) -> bool:
+    async def call_custom_trigger(self, name: str, chat_id: str, context_data: dict | None = None) -> bool:
         """
         调用自定义触发器
 
@@ -337,13 +333,12 @@ class ProactiveManager:
 
             # 转换到被呼唤状态
             await self.angel_context.transition_to_status(
-                chat_id,
-                AngelHeartStatus.SUMMONED,
-                f"主动应答: {request.topic}"
+                chat_id, AngelHeartStatus.SUMMONED, f"主动应答: {request.topic}"
             )
 
             # 创建决策对象 - 按照RAG规范添加字段
             from ..models.analysis_result import SecretaryDecision
+
             decision = SecretaryDecision(
                 should_reply=True,
                 reply_strategy=request.strategy,
@@ -353,15 +348,13 @@ class ProactiveManager:
                 is_interesting=True,
                 entities=[],  # 实体应由LLM从实际内容中提取，主动应答场景暂不提供
                 facts=[f"系统主动发起{request.topic}"],  # 极简日志模式，不超过15字
-                keywords=[request.topic]  # 核心搜索词
+                keywords=[request.topic],  # 核心搜索词
             )
 
             # 更新分析时间
             await self.angel_context.update_last_analysis_time(chat_id)
 
-            logger.info(
-                f"AngelHeart[{chat_id}]: 主动应答已触发 - 话题: {request.topic}, 策略: {request.strategy}"
-            )
+            logger.info(f"AngelHeart[{chat_id}]: 主动应答已触发 - 话题: {request.topic}, 策略: {request.strategy}")
 
             # 调用回调
             if request.callback:
@@ -401,7 +394,7 @@ class ProactiveManager:
             if current is request:
                 self.active_tasks.pop(request.chat_id, None)
 
-    def get_active_tasks(self) -> Dict[str, Dict]:
+    def get_active_tasks(self) -> dict[str, dict]:
         """
         获取活跃任务列表
 
@@ -416,18 +409,14 @@ class ProactiveManager:
                 "topic": request.topic,
                 "created_at": request.created_at,
                 "delay_seconds": request.delay_seconds,
-                "scheduled_time": request.scheduled_time
+                "scheduled_time": request.scheduled_time,
             }
         return result
 
     async def cleanup(self):
         """取消并等待全部主动任务退出，清空任务与触发器注册表。"""
         async with self._lock:
-            tasks = [
-                request.task
-                for request in self.active_tasks.values()
-                if request.task is not None
-            ]
+            tasks = [request.task for request in self.active_tasks.values() if request.task is not None]
             self.active_tasks.clear()
             self.custom_triggers.clear()
             for task in tasks:

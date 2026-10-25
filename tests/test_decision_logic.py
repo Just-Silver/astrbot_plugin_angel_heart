@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -16,38 +16,43 @@ def make_config(reply_even: bool, force_reply: bool = True):
     """构造最小 ConfigManager 桩"""
     from astrbot_plugin_angel_heart.core.config_manager import ConfigManager
 
-    return ConfigManager({
-        "analyzer_model": "mock-model",
-        "wake_interaction": {
-            "force_reply_when_summoned": force_reply,
-            "reply_even_not_questioned": reply_even,
-            "alias": "fairy",
-        },
-        "personality": {
-            "ai_self_identity": "测试用",
-            "reply_strategy_guide": "",
-        },
-        "timing": {},
-        "leave_reply": {},
-        "access_control": {},
-        "context_compression": {},
-        "output_rewrite": {},
-    })
+    return ConfigManager(
+        {
+            "analyzer_model": "mock-model",
+            "wake_interaction": {
+                "force_reply_when_summoned": force_reply,
+                "reply_even_not_questioned": reply_even,
+                "alias": "fairy",
+            },
+            "personality": {
+                "ai_self_identity": "测试用",
+                "reply_strategy_guide": "",
+            },
+            "timing": {},
+            "leave_reply": {},
+            "access_control": {},
+            "context_compression": {},
+            "output_rewrite": {},
+        }
+    )
 
 
 def make_decision(should_reply: bool, questioned: bool, interesting: bool) -> dict:
     """构造 LLM 返回的 JSON 字符串"""
-    return json.dumps({
-        "should_reply": should_reply,
-        "is_questioned": questioned,
-        "is_interesting": interesting,
-        "reply_strategy": "情感支持类策略",
-        "topic": "测试",
-        "reply_target": "测试用户",
-        "entities": [],
-        "facts": [],
-        "keywords": [],
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "should_reply": should_reply,
+            "is_questioned": questioned,
+            "is_interesting": interesting,
+            "reply_strategy": "情感支持类策略",
+            "topic": "测试",
+            "reply_target": "测试用户",
+            "entities": [],
+            "facts": [],
+            "keywords": [],
+        },
+        ensure_ascii=False,
+    )
 
 
 class TestAnalyzerForwardCondition:
@@ -58,27 +63,34 @@ class TestAnalyzerForwardCondition:
     """
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("reply_even,should_reply,questioned,interesting,expected", [
-        # reply_even=true → 无条件放行
-        (True,  True,  True,  True,  True),
-        (True,  True,  True,  False, True),
-        (True,  True,  False, True,  True),
-        (True,  True,  False, False, True),
-        (True,  False, True,  True,  False),
-        (True,  False, False, False, False),
-        # reply_even=false → 必须有提问或兴趣
-        (False, True,  True,  True,  True),
-        (False, True,  True,  False, True),
-        (False, True,  False, True,  True),
-        (False, True,  False, False, False),  # ← 关键 case
-        (False, False, True,  True,  False),
-        (False, False, False, False, False),
-    ])
+    @pytest.mark.parametrize(
+        "reply_even,should_reply,questioned,interesting,expected",
+        [
+            # reply_even=true → 无条件放行
+            (True, True, True, True, True),
+            (True, True, True, False, True),
+            (True, True, False, True, True),
+            (True, True, False, False, True),
+            (True, False, True, True, False),
+            (True, False, False, False, False),
+            # reply_even=false → 必须有提问或兴趣
+            (False, True, True, True, True),
+            (False, True, True, False, True),
+            (False, True, False, True, True),
+            (False, True, False, False, False),  # ← 关键 case
+            (False, False, True, True, False),
+            (False, False, False, False, False),
+        ],
+    )
     async def test_analyzer_decision(
-        self, reply_even, should_reply, questioned, interesting, expected,
+        self,
+        reply_even,
+        should_reply,
+        questioned,
+        interesting,
+        expected,
     ):
         from astrbot_plugin_angel_heart.core.llm_analyzer import LLMAnalyzer
-        from astrbot_plugin_angel_heart.core.config_manager import ConfigManager
 
         config = make_config(reply_even=reply_even)
         response_json = make_decision(should_reply, questioned, interesting)
@@ -129,7 +141,12 @@ class TestForceReplyWithReason:
         ],
     )
     async def test_force_only_with_reason(
-        self, reply_even, should_reply, questioned, interesting, expected,
+        self,
+        reply_even,
+        should_reply,
+        questioned,
+        interesting,
+        expected,
     ):
         from astrbot_plugin_angel_heart.models.analysis_result import SecretaryDecision
 
@@ -149,11 +166,7 @@ class TestForceReplyWithReason:
 
         # 模拟统一激活入口中的 force_reply 逻辑
         if config.force_reply_when_summoned:
-            has_reason = (
-                decision.is_questioned
-                or decision.is_interesting
-                or config.reply_even_not_questioned
-            )
+            has_reason = decision.is_questioned or decision.is_interesting or config.reply_even_not_questioned
             if has_reason:
                 decision.should_reply = True
                 decision.reply_strategy = "被呼唤回复"
