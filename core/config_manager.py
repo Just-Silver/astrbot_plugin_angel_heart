@@ -33,6 +33,12 @@ class ConfigManager:
         self._config = config_data or {}
         self._profile_store = None
         self._active_chat_id = ""
+        # 直接按模板渲染（WebUI 提示词预览用），与 _active_chat_id 互斥且优先级更高。
+        self._active_template_id = ""
+        # 内存覆盖（WebUI 预览带入未保存草稿），优先级最高，从不落盘。
+        self._overrides: dict = {}
+        # 离线预览视图允许没有 chat_id，不按「调用方漏传」告警。
+        self._allow_empty_chat = False
 
     def attach_profile_store(self, profile_store) -> None:
         """挂载群聊配置模板存储；重复挂载会替换旧引用。"""
@@ -46,19 +52,80 @@ class ConfigManager:
 
         chat_id 为空属于「无 ID 读取」异常路径，不静默回退全局，
         记 warning 暴露调用方漏传问题（不抛异常，避免打断运行时）。
+        离线预览（for_template / with_overrides）本身就可能没有群聊，
+        这类视图用 _allow_empty_chat 关掉该告警。
         """
-        if not chat_id:
+        if not chat_id and not self._active_template_id and not self._allow_empty_chat:
             logger.warning("AngelHeart: for_chat 收到空 chat_id，本次读取将回退全局配置，请检查调用方是否漏传")
         view = ConfigManager(self._config)
         view._profile_store = self._profile_store
         view._active_chat_id = str(chat_id or "")
+        # 下游（如 LLMAnalyzer._build_prompt）会用 for_chat("") 再取一次配置，
+        # 这里必须把模板绑定与草稿覆盖带过去，否则预览拿到的就不是同一份值。
+        view._active_template_id = self._active_template_id
+        view._overrides = self._overrides
+        view._allow_empty_chat = self._allow_empty_chat
         return view
+
+    def for_template(self, template_id: str) -> "ConfigManager":
+        """返回按指定模板渲染的配置视图，不依赖群聊绑定。
+
+        只用于离线渲染（WebUI 提示词预览）；运行期事件链一律走 for_chat。
+        """
+        view = ConfigManager(self._config)
+        view._profile_store = self._profile_store
+        view._active_template_id = str(template_id or "")
+        view._overrides = self._overrides
+        view._allow_empty_chat = True
+        return view
+
+    def with_overrides(self, overrides: dict | None) -> "ConfigManager":
+        """返回带内存覆盖的新视图（WebUI 预览用，不落盘）。
+
+        覆盖按分组合并，只用于渲染，不参与任何运行期判断。
+        """
+        view = ConfigManager(self._config)
+        view._profile_store = self._profile_store
+        view._active_chat_id = self._active_chat_id
+        view._active_template_id = self._active_template_id
+        view._allow_empty_chat = True
+        merged: dict = {}
+        for source in (self._overrides, overrides or {}):
+            if not isinstance(source, dict):
+                continue
+            for group, values in source.items():
+                if isinstance(values, dict):
+                    merged.setdefault(group, {}).update(values)
+                else:
+                    merged[group] = values
+        view._overrides = merged
+        return view
+
+    def _template_override(self) -> dict | None:
+        """当前视图直接绑定的模板覆盖值；未设置或模板已删时返回 None。"""
+        if self._profile_store is None or not self._active_template_id:
+            return None
+        try:
+            return self._profile_store.get_template_config(self._active_template_id)
+        except Exception:
+            return None
 
     def _get_grouped(self, group: str, key: str, default=None):
         """从分组中读取配置，兼容旧的扁平格式。
 
-        优先命中当前群聊绑定模板的覆盖值；其次读全局嵌套结构；最后回退旧扁平 key。
+        优先级：内存覆盖 → 直接绑定的模板 → 当前群聊绑定模板 → 全局嵌套结构 → 旧扁平 key。
         """
+        if isinstance(self._overrides, dict):
+            grp = self._overrides.get(group)
+            if isinstance(grp, dict) and key in grp:
+                return grp[key]
+
+        override = self._template_override()
+        if override:
+            grp = override.get(group)
+            if isinstance(grp, dict) and key in grp:
+                return grp[key]
+
         if self._profile_store is not None and self._active_chat_id:
             override = self._profile_store.resolve_override(self._active_chat_id)
             if override:
@@ -72,19 +139,30 @@ class ConfigManager:
         # 回退到旧的扁平 key
         return self._config.get(key, default)
 
+    def _get_top_level(self, key: str, default=None):
+        """读取顶层键（不走分组），同样让位给内存覆盖。
+
+        顶层键在旧格式里就是扁平 key（analyzer_model / is_reasoning_model 等），
+        前端全局配置 draft 也是扁平结构，因此覆盖层按同名 key 直接命中。
+        """
+        if isinstance(self._overrides, dict) and key in self._overrides:
+            return self._overrides[key]
+        return self._config.get(key, default)
+
     # ========== 顶层配置 ==========
 
     @property
     def analyzer_model(self) -> str:
-        return self._config.get("analyzer_model", "")
+        return self._get_top_level("analyzer_model", "")
 
     @property
     def image_caption_provider_id(self) -> str:
-        return self._config.get("image_caption_provider_id", "")
+        return self._get_top_level("image_caption_provider_id", "")
 
     @property
     def is_reasoning_model(self) -> bool:
-        return self._config.get("is_reasoning_model", False)
+        # 缺键时与 _conf_schema.json 的 default 保持一致（true = 走 instruction_prompts）。
+        return bool(self._get_top_level("is_reasoning_model", True))
 
     # ========== timing ==========
 

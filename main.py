@@ -132,6 +132,7 @@ class AngelHeartPlugin(Star):
                 self.last_decisions,
                 config=self.config,
                 plugin=self,
+                work_ledger=self.angel_context.work_ledger,
             )
             logger.info("AngelHeart: 已注册群聊配置 WebUI API 路由")
         except Exception as e:  # pragma: no cover - 兼容旧版 AstrBot
@@ -557,6 +558,10 @@ class AngelHeartPlugin(Star):
                     )
                 except Exception as e:
                     logger.debug(f"AngelHeart[{chat_id}]: 更新工作账本完成状态失败: {e}")
+                try:
+                    self.angel_context.conversation_ledger.flush_pending_cleanup(chat_id)
+                except Exception as e:
+                    logger.debug(f"AngelHeart[{chat_id}]: 补做媒体缓存清理失败: {e}")
             else:
                 logger.debug(f"AngelHeart[{chat_id}]: 未检测到实际消息发送，跳过状态转换")
                 try:
@@ -574,6 +579,10 @@ class AngelHeartPlugin(Star):
                         )
                 except Exception:
                     pass
+                try:
+                    self.angel_context.conversation_ledger.flush_pending_cleanup(chat_id)
+                except Exception as e:
+                    logger.debug(f"AngelHeart[{chat_id}]: 补做媒体缓存清理失败: {e}")
                 try:
                     await self._finish_secretary_dispatch(
                         event,

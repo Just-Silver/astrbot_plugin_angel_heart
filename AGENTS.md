@@ -172,6 +172,31 @@ angel_context.proactive_manager.register_custom_trigger("my_trigger", custom_tri
 - [`behavior_rules.md`](prompts/modules/behavior_rules.md)：行为规则
 - [`decision_logic.md`](prompts/modules/decision_logic.md)：决策逻辑
 
+提示词分层、可变槽位与写死内容的分界见 [`docs/architecture/prompt_layers.md`](docs/architecture/prompt_layers.md)。
+
+## 上游同步
+
+本 fork 不合并回上游，但持续吸收上游的 bug 修复：上游有真实用户群，是免费的 QA 通道。
+
+### 每次会话开始必须执行
+
+**本节是硬性要求，不是建议。** 每次新会话开始、动手改任何代码之前，先跑：
+
+```bash
+git fetch upstream --tags && python scripts/check_upstream.py
+```
+
+- `git fetch` 不能省：脚本只读本机快照，不联网；不 fetch 会误报「上游无新提交」。
+- 有新增提交时，把结果连同「是否值得同步」的判断一并告知用户，再继续当前任务。
+- 无新增提交时，一句话说明即可，不要展开。
+- 若本次任务是修 bug，务必先看一眼上游是否已修过同一个问题——重复劳动或直接复用都比重写划算。
+
+### 其余约定
+
+- 流程与改动禁区见 [`docs/upstream_sync.md`](docs/upstream_sync.md)。
+- 修改 `roles/front_desk.py`、`core/conversation_ledger.py`、`core/angel_heart_status.py`、`main.py` 前先读该文档——这几个文件上游也在频繁改，改动越大同步成本越高。
+- 发现的待办与待决策事项登记在 [`docs/TODO.md`](docs/TODO.md)，不要只留在对话里。
+
 ## 调试与监控
 
 ### 日志系统

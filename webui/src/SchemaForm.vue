@@ -149,6 +149,8 @@ const props = defineProps<{
   schema: Record<string, SchemaMeta>
   modelValue?: Record<string, unknown>
   providers?: Record<string, string[]>
+  /** 不在此处渲染的顶层分组 key（该组由别的 tab 独占展示） */
+  exclude?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -195,6 +197,7 @@ const groups = computed<Group[]>(() => {
 
   for (const [key, meta] of Object.entries(schema)) {
     if (!meta || typeof meta !== 'object') continue
+    if (props.exclude?.includes(key)) continue
     if (meta.type === 'object') {
       const rows: CardRow[] = []
       for (const [subKey, subMeta] of Object.entries(meta.items || {})) {

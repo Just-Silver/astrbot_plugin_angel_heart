@@ -49,6 +49,18 @@ async def _get_json() -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _get_query() -> dict:
+    """读取 URL query，兼容新版 request.query 与旧版 quart request.args。"""
+    if HAS_WEB_API:
+        source = request.query
+    else:
+        source = request.args
+    try:
+        return {key: source.get(key) for key in source.keys()}
+    except Exception:
+        return {}
+
+
 class ProfileAPI:
     """模板 CRUD 与群聊绑定 API。"""
 
@@ -303,6 +315,77 @@ class ProfileAPI:
         return _ok(items)
 
 
+class PromptPreviewAPI:
+    """提示词预览：只读渲染 5 步链路的注入内容。
+
+    配置来源二选一：template_id（按模板渲染，不依赖绑定）或 chat_id（按该群聊
+    实际生效配置渲染）。两者都为空时用全局配置。
+    """
+
+    def __init__(self, profile_store, config_manager, conversation_ledger, work_ledger):
+        self.profile_store = profile_store
+        self.config_manager = config_manager
+        self.conversation_ledger = conversation_ledger
+        self.work_ledger = work_ledger
+
+    def preview(self):
+        query = _get_query()
+        template_id = str(query.get("template_id") or "").strip()
+        chat_id = str(query.get("chat_id") or "").strip()
+
+        cm = self._resolve_config(template_id, chat_id)
+        if cm is None:
+            return _err(f"模板不存在: {template_id}", 404)
+
+        from .prompt_preview import PromptPreviewBuilder
+
+        try:
+            builder = PromptPreviewBuilder(cm, self.conversation_ledger, self.work_ledger)
+            data = builder.build(chat_id=chat_id)
+        except Exception as e:
+            logger.error(f"AngelHeart: 渲染提示词预览失败: {e}", exc_info=True)
+            return _err(f"渲染失败: {e}", 500)
+        data["meta"]["template_id"] = template_id
+        return _ok(data)
+
+    async def preview_with_draft(self):
+        """按前端当前草稿渲染，让未保存的修改也能立刻预览。
+
+        草稿只在内存覆盖层生效，不写模板存储、不写插件配置。
+        """
+        payload = await _get_json()
+        template_id = str(payload.get("template_id") or "").strip()
+        chat_id = str(payload.get("chat_id") or "").strip()
+        draft = payload.get("draft")
+
+        cm = self._resolve_config(template_id, chat_id)
+        if cm is None:
+            return _err(f"模板不存在: {template_id}", 404)
+        if isinstance(draft, dict) and draft:
+            cm = cm.with_overrides(draft)
+
+        from .prompt_preview import PromptPreviewBuilder
+
+        try:
+            builder = PromptPreviewBuilder(cm, self.conversation_ledger, self.work_ledger)
+            data = builder.build(chat_id=chat_id)
+        except Exception as e:
+            logger.error(f"AngelHeart: 渲染提示词预览失败: {e}", exc_info=True)
+            return _err(f"渲染失败: {e}", 500)
+        data["meta"]["template_id"] = template_id
+        return _ok(data)
+
+    def _resolve_config(self, template_id: str, chat_id: str):
+        """按模板优先、其次群聊、最后全局，返回带覆盖的配置视图。"""
+        if template_id:
+            if self.profile_store is None or self.profile_store.get_template(template_id) is None:
+                return None
+            return self.config_manager.for_template(template_id)
+        if chat_id:
+            return self.config_manager.for_chat(chat_id)
+        return self.config_manager
+
+
 def register_all_routes(
     context,
     profile_store,
@@ -314,6 +397,7 @@ def register_all_routes(
     last_decisions=None,
     config=None,
     plugin=None,
+    work_ledger=None,
 ) -> None:
     """注册全部 WebUI API 路由。"""
     api = ProfileAPI(
@@ -324,6 +408,12 @@ def register_all_routes(
         status_transition_manager,
         debounce_manager,
         last_decisions,
+    )
+    preview_api = PromptPreviewAPI(
+        profile_store,
+        config_manager,
+        conversation_ledger,
+        work_ledger,
     )
 
     routes = [
@@ -336,6 +426,13 @@ def register_all_routes(
         ("/astrbot_plugin_angel_heart/chats", api.list_chats, ["GET"], "已知群聊列表"),
         ("/astrbot_plugin_angel_heart/chat_sources", api.list_chat_sources, ["GET"], "来源登记列表"),
         ("/astrbot_plugin_angel_heart/chat_status", api.chat_status, ["GET"], "群聊状态仪表盘"),
+        ("/astrbot_plugin_angel_heart/prompt_preview", preview_api.preview, ["GET"], "提示词预览（只读）"),
+        (
+            "/astrbot_plugin_angel_heart/prompt_preview/draft",
+            preview_api.preview_with_draft,
+            ["POST"],
+            "提示词预览（含未保存草稿）",
+        ),
     ]
 
     if config is not None and plugin is not None:

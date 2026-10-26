@@ -33,6 +33,8 @@ provide(themeKey, theme)
 
 // data-theme 同步到根节点：CSS 变量按 :root[data-theme] 分组，
 // 且 NModal 会 teleport 到 body，变量必须挂在 documentElement 上才能覆盖弹窗。
+// 桥接脚本也会写这个属性；这里跟随 theme.mode（它是 URL/桥接/localStorage 综合后的结果），
+// 保证宿主推送与页面内切换都能落到同一处。
 watchEffect(() => {
   document.documentElement.dataset.theme = theme.mode.value
 })

@@ -13,6 +13,7 @@
       <div class="sidebar-inner" :class="{ collapsed: sidebarCollapsed }">
         <div class="sidebar-header">
           <button
+            v-if="!followedByHost"
             class="theme-toggle"
             type="button"
             :title="isDark ? '切换到光模式' : '切换到暗模式'"
@@ -143,13 +144,28 @@
           <h2>全局配置</h2>
           <span class="content-sub">未绑定群聊使用的默认配置，与原生插件配置页同源</span>
         </div>
-        <SchemaForm
-          v-if="settingsLoaded"
-          :schema="settingsSchema"
-          v-model:model-value="settingsValues"
-          :providers="settingsProviders"
-        />
-        <n-spin v-else style="margin-top: 40px" />
+        <n-tabs v-model:value="globalTab" type="line" class="view-tabs">
+          <n-tab-pane name="config" tab="配置">
+            <SchemaForm
+              v-if="settingsLoaded"
+              :schema="settingsSchema"
+              v-model:model-value="settingsValues"
+              :providers="settingsProviders"
+              :exclude="personalityGroupKeys"
+            />
+            <n-spin v-else style="margin-top: 40px" />
+          </n-tab-pane>
+          <n-tab-pane name="preview" tab="提示词">
+            <PreviewPane
+              v-if="settingsLoaded"
+              :model="settingsValues"
+              :schema="settingsSchema"
+              :chats="statusItems"
+              source="global"
+            />
+            <n-spin v-else style="margin-top: 40px" />
+          </n-tab-pane>
+        </n-tabs>
       </template>
 
       <!-- 模板配置编辑：与全局配置共用 SchemaForm 分段卡 -->
@@ -157,13 +173,29 @@
         <div class="content-header">
           <h2>{{ currentTemplate?.name }}</h2>
         </div>
-        <SchemaForm
-          v-if="settingsLoaded"
-          v-model:model-value="configModel"
-          :schema="templateSchema"
-          :providers="settingsProviders"
-        />
-        <n-spin v-else style="margin-top: 40px" />
+        <n-tabs v-model:value="templateTab" type="line" class="view-tabs">
+          <n-tab-pane name="config" tab="配置">
+            <SchemaForm
+              v-if="settingsLoaded"
+              v-model:model-value="configModel"
+              :schema="templateSchema"
+              :providers="settingsProviders"
+              :exclude="personalityGroupKeys"
+            />
+            <n-spin v-else style="margin-top: 40px" />
+          </n-tab-pane>
+          <n-tab-pane name="preview" tab="提示词">
+            <PreviewPane
+              v-if="settingsLoaded"
+              :model="configModel"
+              :schema="templateSchema"
+              :chats="statusItems"
+              :template-id="selectedId"
+              source="template"
+            />
+            <n-spin v-else style="margin-top: 40px" />
+          </n-tab-pane>
+        </n-tabs>
       </template>
       </div>
       </n-scrollbar>
@@ -257,11 +289,12 @@ import {
 import { useBridge } from './composables/useBridge'
 import { themeKey } from './theme'
 import SchemaForm from './SchemaForm.vue'
+import PreviewPane from './PreviewPane.vue'
 import type { SchemaMeta } from './schema'
 
 const { apiGet, apiPost } = useBridge()
 const message = useMessage()
-const { isDark, toggle: toggleTheme } = inject(themeKey)!
+const { isDark, toggle: toggleTheme, followedByHost } = inject(themeKey)!
 
 const templates = ref<TemplateDetail[]>([])
 const chats = ref<ChatItem[]>([])
@@ -269,6 +302,9 @@ const statusItems = ref<ChatStatusItem[]>([])
 const kindFilter = ref<'all' | 'group' | 'private'>('all')
 const viewMode = ref<'config' | 'monitor'>('monitor')
 const selectedId = ref<string | null>(null)
+// 配置/预览 tab：全局与模板各记一份，切模板不互相污染
+const globalTab = ref<'config' | 'preview'>('config')
+const templateTab = ref<'config' | 'preview'>('config')
 const sidebarCollapsed = ref(false)
 // naive-ui 的 n-layout-sider 没有 breakpoint 属性，用 matchMedia 实现窄屏自动收起
 const narrowMql = window.matchMedia('(max-width: 768px)')
@@ -479,6 +515,9 @@ function saveCurrent() {
   if (selectedId.value) void saveTemplate()
   else void savePluginConfig()
 }
+
+// 「助理画像」只在提示词 tab 里编辑，配置页不再重复渲染同一组字段
+const personalityGroupKeys = ['personality']
 
 // 模板编辑用 schema：从全局 schema 按 fields.ts 的精选分组裁剪出子集
 const templateSchema = computed<Record<string, SchemaMeta>>(() => {
@@ -756,6 +795,10 @@ onUnmounted(() => {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px 28px;
+}
+
+.view-tabs {
+  margin-top: 4px;
 }
 
 .content-header {
