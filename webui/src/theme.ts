@@ -15,11 +15,52 @@ export interface ThemeApi {
   mode: Ref<ThemeMode>
   isDark: ComputedRef<boolean>
   toggle: () => void
+  /** 主题是否由宿主 AstrBot 控制（嵌入模式下禁用页面内切换按钮） */
+  followedByHost: Ref<boolean>
 }
 
 export const themeKey: InjectionKey<ThemeApi> = Symbol('app-theme')
 
+/** AstrBot 插件页桥接对象；新旧两代命名都要认（宿主 4.x 起改名 PluginView）。 */
+interface HostBridge {
+  onContext?: (handler: (ctx: { isDark?: boolean } | null) => void) => () => void
+  getContext?: () => { isDark?: boolean } | null
+}
+
+function getHostBridge(): HostBridge | null {
+  if (typeof window === 'undefined') return null
+  const holder = window as unknown as Record<string, unknown>
+  const bridge = (holder.AstrBotPluginView || holder.AstrBotPluginPage) as HostBridge | undefined
+  return bridge && typeof bridge === 'object' ? bridge : null
+}
+
+function normalizeMode(value: unknown): ThemeMode | null {
+  return value === 'dark' || value === 'light' ? value : null
+}
+
+/** 宿主桥接上下文里的 isDark 转 ThemeMode；非布尔（含未就绪）返回 null。 */
+function modeFromIsDark(value: unknown): ThemeMode | null {
+  if (typeof value !== 'boolean') return null
+  return value ? 'dark' : 'light'
+}
+
 export function loadThemeMode(): ThemeMode {
+  // 优先级：宿主 URL 参数 > 宿主桥接注入的 data-theme > 页面自身持久化
+  // 宿主是唯一真相源：嵌入时若用户上次在页面内切过，也不能盖掉 AstrBot 的选择。
+  try {
+    const fromUrl = normalizeMode(new URLSearchParams(window.location.search).get('theme'))
+    if (fromUrl) return fromUrl
+  } catch {
+    /* URL 解析失败继续往下走 */
+  }
+
+  try {
+    const fromHost = normalizeMode(document.documentElement.dataset.theme)
+    if (fromHost) return fromHost
+  } catch {
+    /* 无 document（极端环境）时继续往下走 */
+  }
+
   try {
     return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light'
   } catch {
@@ -37,9 +78,32 @@ function saveThemeMode(mode: ThemeMode) {
 
 export function createThemeApi(): ThemeApi {
   const mode = ref<ThemeMode>(loadThemeMode())
+  const followedByHost = ref<boolean>(false)
+
+  const bridge = getHostBridge()
+  if (bridge?.onContext) {
+    try {
+      bridge.onContext((ctx) => {
+        const next = modeFromIsDark(ctx?.isDark)
+        if (!next) return
+        // 一旦收到宿主推送，后续主题完全交给宿主，页面内切换不再写 localStorage 覆盖它。
+        followedByHost.value = true
+        mode.value = next
+      })
+      const initial = modeFromIsDark(bridge.getContext?.()?.isDark)
+      if (initial) {
+        followedByHost.value = true
+        mode.value = initial
+      }
+    } catch {
+      /* 桥接异常时退回页面自管主题 */
+    }
+  }
+
   return {
     mode,
     isDark: computed(() => mode.value === 'dark'),
+    followedByHost,
     toggle: () => {
       mode.value = mode.value === 'light' ? 'dark' : 'light'
       saveThemeMode(mode.value)

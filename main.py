@@ -132,6 +132,7 @@ class AngelHeartPlugin(Star):
                 self.last_decisions,
                 config=self.config,
                 plugin=self,
+                work_ledger=self.angel_context.work_ledger,
             )
             logger.info("AngelHeart: 已注册群聊配置 WebUI API 路由")
         except Exception as e:  # pragma: no cover - 兼容旧版 AstrBot

@@ -172,6 +172,8 @@ angel_context.proactive_manager.register_custom_trigger("my_trigger", custom_tri
 - [`behavior_rules.md`](prompts/modules/behavior_rules.md)：行为规则
 - [`decision_logic.md`](prompts/modules/decision_logic.md)：决策逻辑
 
+提示词分层、可变槽位与写死内容的分界见 [`docs/architecture/prompt_layers.md`](docs/architecture/prompt_layers.md)。
+
 ## 调试与监控
 
 ### 日志系统
