@@ -353,3 +353,34 @@ def test_focus_scope_placeholder_fully_replaced(store):
 
     text = next(s for s in data["steps"] if s["key"] == "secretary")["text"]
     assert "{reply_strategy_guide}" not in text
+
+
+def test_out_of_scope_silence_rules_precede_decision(store):
+    """「范围外不接话」必须写在步骤二之前。
+
+    只写「范围内可以接」是授权，模型会把范围外也当成「可以」；
+    必须同时给出反向约束，且要排在它做决定的规则之前才生效。
+    """
+    cm = ConfigManager(make_config())
+    cm.attach_profile_store(store)
+    data = PromptPreviewBuilder(cm.for_template(""), FakeLedger(), WorkLedger()).build("")
+
+    text = next(s for s in data["steps"] if s["key"] == "secretary")["text"]
+    step2 = text.find("步骤二_判断是否可以主动介入")
+
+    assert step2 > 0
+    assert 0 <= text.find("话题不在「我的关注范围」内时，只要没有人点名，我就不接话") < step2
+    assert 0 <= text.find("我不会用「活跃气氛」「带来正能量」「群聊冷场」作为理由") < step2
+
+
+def test_scope_filter_runs_before_social_qualification(store):
+    """步骤二内部：先筛关注范围，再做社交资格审查。顺序反了会先被「能活跃气氛」说服。"""
+    cm = ConfigManager(make_config())
+    cm.attach_profile_store(store)
+    data = PromptPreviewBuilder(cm.for_template(""), FakeLedger(), WorkLedger()).build("")
+
+    text = next(s for s in data["steps"] if s["key"] == "secretary")["text"]
+    scope_filter = text.find("第一步筛选：关注范围")
+    qualification = text.find("<社交资格审查>")
+
+    assert 0 <= scope_filter < qualification
