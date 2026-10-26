@@ -68,6 +68,25 @@
 
 本文件末尾的「同步记录」表登记每次同步的区间与处理方式，供下次考古。
 
+### 检查脚本的工作原理
+
+```bash
+git fetch upstream --tags        # 脚本不联网，必须先手动 fetch
+python scripts/check_upstream.py
+```
+
+脚本只读本地 git 对象，跑三条命令：
+
+| 命令 | 作用 |
+| --- | --- |
+| `git log --oneline <同步点>..upstream/master` | 列出新增提交 |
+| `git diff --name-only <同步点>..upstream/master` | 上游改了哪些文件 |
+| `git merge-tree --write-tree HEAD upstream/master` | **在内存里试算合并**，得到真实冲突文件列表 |
+
+`merge-tree` 是关键：它不像 `git merge` 那样动工作区，也不像「双方都改过的文件清单」那样只是近似。它按三路合并算法真算一遍，输出需要人工裁决的文件——就是 `git merge` 时会报 `CONFLICT` 的那些。
+
+因此脚本给出的冲突数是**当前 HEAD 对该上游版本的真实同步成本**。
+
 ## 降低长期冲突的三条规则
 
 1. **少动上游频繁改动的文件**：`roles/front_desk.py`、`core/conversation_ledger.py`、`core/angel_heart_status.py`、`main.py`。必须改时保持改动小而准，避免整段重写。

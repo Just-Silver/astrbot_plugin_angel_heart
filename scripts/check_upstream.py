@@ -1,11 +1,12 @@
-"""检查上游是否有新提交，并评估与本仓库的冲突面。
+"""检查上游是否有新提交，并评估与本仓库的真实冲突面。
 
 用法：
-    python scripts/check_upstream.py              # 以最后一次同步记录为起点
-    python scripts/check_upstream.py v2.2.8       # 显式指定起点
+    git fetch upstream --tags          # 本脚本不联网，先手动拉取
+    python scripts/check_upstream.py    # 以最后一次同步记录为起点
+    python scripts/check_upstream.py a1e1b05   # 显式指定起点
 
-只读：不改工作区、不合并。输出每个上游提交的摘要，以及它与本仓库
-改动过的文件有多少重叠，用于判断同步成本。
+只读：不 fetch、不改工作区、不合并。冲突检测用 `git merge-tree` 在内存里
+试算合并，得到的冲突文件是真实结果，不是「双方都改过」的近似名单。
 """
 
 from __future__ import annotations
@@ -15,15 +16,6 @@ import sys
 from pathlib import Path
 
 UPSTREAM = "upstream/master"
-
-# 上游频繁改动、且本仓库也重写过的文件：重叠越多，手工移植成本越高。
-HIGH_CONFLICT_FILES = {
-    "roles/front_desk.py",
-    "core/conversation_ledger.py",
-    "core/angel_heart_status.py",
-    "core/utils/context_utils.py",
-    "main.py",
-}
 
 
 def git(*args: str) -> str:
@@ -53,6 +45,31 @@ def resolve_base(explicit: str | None) -> str:
     return git("merge-base", "HEAD", UPSTREAM)
 
 
+def merge_conflicts() -> tuple[list[str], str]:
+    """用 merge-tree 在内存里试算 HEAD 与上游的合并，返回真实冲突文件。
+
+    成功时 git 输出首行是树 hash，无冲突则没有其他行；
+    有冲突时每行形如 `<mode> <object> <stage>\\t<path>`，同一 path 出现 1/2/3 三阶段。
+    """
+    result = subprocess.run(
+        ["git", "merge-tree", "--write-tree", "HEAD", UPSTREAM],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    lines = (result.stdout or "").splitlines()
+    if result.returncode == 0:
+        return [], ""
+
+    conflicts: set[str] = set()
+    for line in lines[1:]:
+        if "\t" in line:
+            conflicts.add(line.split("\t", 1)[1])
+    note = "" if conflicts else "merge-tree 非零退出但未解析出冲突文件，可能只是元数据问题"
+    return sorted(conflicts), note
+
+
 def main() -> int:
     explicit = sys.argv[1] if len(sys.argv) > 1 else None
     base = resolve_base(explicit)
@@ -60,6 +77,7 @@ def main() -> int:
     commits = git("log", "--oneline", f"{base}..{UPSTREAM}").splitlines()
     if not commits:
         print(f"上游无新提交（起点 {base}）")
+        print("提示：本脚本不联网，若怀疑落后请先 git fetch upstream --tags")
         return 0
 
     print(f"上游新增 {len(commits)} 个提交（{base}..{UPSTREAM}）\n")
@@ -69,16 +87,17 @@ def main() -> int:
     changed = set(git("diff", "--name-only", f"{base}..{UPSTREAM}").splitlines())
     stat = git("diff", "--stat", f"{base}..{UPSTREAM}").splitlines()
     if stat:
-        print(f"\n上游改动 {len(changed)} 个文件，最后一行统计：")
-        print(f"  {stat[-1].strip()}")
+        print(f"\n上游改动 {len(changed)} 个文件：{stat[-1].strip()}")
 
-    risky = sorted(changed & HIGH_CONFLICT_FILES)
-    if risky:
-        print("\n⚠ 高冲突面（上游与本仓库都改过，需手工移植）：")
-        for path in risky:
+    conflicts, note = merge_conflicts()
+    if note:
+        print(f"\n⚠ {note}")
+    if conflicts:
+        print(f"\n⚠ 与当前 HEAD 真实冲突 {len(conflicts)} 个文件（merge-tree 试算）：")
+        for path in conflicts:
             print(f"  - {path}")
     else:
-        print("\n✓ 无高冲突面文件，可直接评估 cherry-pick")
+        print("\n✓ merge-tree 试算无冲突，可评估直接 cherry-pick")
 
     tests = sorted(p for p in changed if p.startswith("tests/"))
     if tests:
