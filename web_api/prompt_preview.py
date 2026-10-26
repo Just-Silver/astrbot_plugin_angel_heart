@@ -116,7 +116,7 @@ class PromptPreviewBuilder:
             if spec["key"] == "ingest":
                 step["text"] = self._render_ingest(chat_id, recent)
             elif spec["key"] == "secretary":
-                step["text"] = self._render_secretary(history, recent)
+                step["text"] = self._render_secretary(history, recent, chat_id)
             elif spec["key"] == "assistant":
                 step["text"] = self._render_assistant(chat_id, recent)
             elif not spec["injected"]:
@@ -147,7 +147,7 @@ class PromptPreviewBuilder:
             f"  hits[focus]  = 命中焦点词（{focus}）时记录"
         )
 
-    def _render_secretary(self, history: list[dict], recent: list[dict]) -> str:
+    def _render_secretary(self, history: list[dict], recent: list[dict], chat_id: str) -> str:
         """调用真实 LLMAnalyzer 拼装逻辑，但用预览配置视图，不发请求。"""
         from ..core.llm_analyzer import LLMAnalyzer
 
@@ -163,13 +163,14 @@ class PromptPreviewBuilder:
         analyzer.base_prompt_template = analyzer.prompt_loader.build_prompt_template(
             bool(self.config_manager.is_reasoning_model)
         )
-        # _build_prompt 内部会用 chat_id 再取一次 for_chat；预览视图已带模板绑定，
-        # 传空 chat_id 走 for_chat("") 不会丢掉模板覆盖（见 ConfigManager.for_chat）。
+        # 传真实 chat_id：_build_prompt 内部会再取一次 for_chat，传空会触发
+        # 「漏传 chat_id」的 warning，并把未绑定群的场景误报成调用方错误。
+        # 模板/草稿覆盖在 _get_grouped 里优先命中，不依赖这里传空。
         prompt = analyzer._build_prompt(
             historical_context=history,
             recent_dialogue=recent,
             work_ledger_text=self._secretary_ledger_text(),
-            chat_id="",
+            chat_id=chat_id,
         )
         return prompt
 

@@ -37,6 +37,8 @@ class ConfigManager:
         self._active_template_id = ""
         # 内存覆盖（WebUI 预览带入未保存草稿），优先级最高，从不落盘。
         self._overrides: dict = {}
+        # 离线预览视图允许没有 chat_id，不按「调用方漏传」告警。
+        self._allow_empty_chat = False
 
     def attach_profile_store(self, profile_store) -> None:
         """挂载群聊配置模板存储；重复挂载会替换旧引用。"""
@@ -50,8 +52,10 @@ class ConfigManager:
 
         chat_id 为空属于「无 ID 读取」异常路径，不静默回退全局，
         记 warning 暴露调用方漏传问题（不抛异常，避免打断运行时）。
+        离线预览（for_template / with_overrides）本身就可能没有群聊，
+        这类视图用 _allow_empty_chat 关掉该告警。
         """
-        if not chat_id and not self._active_template_id:
+        if not chat_id and not self._active_template_id and not self._allow_empty_chat:
             logger.warning("AngelHeart: for_chat 收到空 chat_id，本次读取将回退全局配置，请检查调用方是否漏传")
         view = ConfigManager(self._config)
         view._profile_store = self._profile_store
@@ -60,6 +64,7 @@ class ConfigManager:
         # 这里必须把模板绑定与草稿覆盖带过去，否则预览拿到的就不是同一份值。
         view._active_template_id = self._active_template_id
         view._overrides = self._overrides
+        view._allow_empty_chat = self._allow_empty_chat
         return view
 
     def for_template(self, template_id: str) -> "ConfigManager":
@@ -71,6 +76,7 @@ class ConfigManager:
         view._profile_store = self._profile_store
         view._active_template_id = str(template_id or "")
         view._overrides = self._overrides
+        view._allow_empty_chat = True
         return view
 
     def with_overrides(self, overrides: dict | None) -> "ConfigManager":
@@ -82,6 +88,7 @@ class ConfigManager:
         view._profile_store = self._profile_store
         view._active_chat_id = self._active_chat_id
         view._active_template_id = self._active_template_id
+        view._allow_empty_chat = True
         merged: dict = {}
         for source in (self._overrides, overrides or {}):
             if not isinstance(source, dict):

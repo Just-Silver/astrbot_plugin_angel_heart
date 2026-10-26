@@ -257,3 +257,42 @@ def test_draft_can_toggle_reasoning_switch(store):
 
     assert "思维链指引" not in on_text
     assert "思维链指引" in off_text
+
+
+def test_preview_without_chat_does_not_warn_missing_chat_id(store):
+    """预览未选群聊是合法状态，不应报「调用方漏传 chat_id」。
+
+    真实事件链漏传才有意义；预览报这条会把正常操作变成噪音。
+    """
+    from astrbot_plugin_angel_heart.core import config_manager as cm_module
+
+    cm = ConfigManager(make_config())
+    cm.attach_profile_store(store)
+
+    # 测试环境 logger 是 MagicMock，直接对调用做断言
+    cm_module.logger.warning.reset_mock()
+    PromptPreviewBuilder(cm.for_template(""), FakeLedger(), WorkLedger()).build("")
+
+    assert not any("漏传" in str(call) for call in cm_module.logger.warning.call_args_list)
+
+
+def test_event_chain_still_warns_on_empty_chat_id(store):
+    """运行期视图没有豁免：空 chat_id 仍然要暴露调用方问题。"""
+    from astrbot_plugin_angel_heart.core import config_manager as cm_module
+
+    cm = ConfigManager(make_config())
+    cm.attach_profile_store(store)
+
+    cm_module.logger.warning.reset_mock()
+    cm.for_chat("")
+
+    assert any("漏传" in str(call) for call in cm_module.logger.warning.call_args_list)
+
+
+def test_preview_uses_real_chat_id_for_secretary(store):
+    """秘书 prompt 用真实 chat_id 渲染，避免触发漏传告警。"""
+    cm = ConfigManager(make_config())
+    cm.attach_profile_store(store)
+    data = PromptPreviewBuilder(cm.for_template(""), FakeLedger(), WorkLedger()).build("aiocqhttp:GroupMessage:1")
+
+    assert data["meta"]["chat_id"] == "aiocqhttp:GroupMessage:1"
