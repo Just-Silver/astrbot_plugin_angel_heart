@@ -326,3 +326,30 @@ def test_preview_reuses_prompt_loader(store):
     finally:
         PromptModuleLoader.__init__ = original_init
         prompt_preview._PREVIEW_LOADER = None
+
+
+def test_focus_scope_appears_before_decision_point(store):
+    """关注范围必须排在「步骤二 判断是否可以主动介入」之前。
+
+    秘书做「回不回」判断时要能看到关注范围，否则它只能靠猜，
+    把「天气好热」这类闲聊也当成范围内的话题主动接话。
+    """
+    guide = "优先接：游戏、动漫、科技。不要接：天气、吃饭。"
+    cm = ConfigManager(make_config(personality={"reply_strategy_guide": guide}))
+    cm.attach_profile_store(store)
+    data = PromptPreviewBuilder(cm.for_template(""), FakeLedger(), WorkLedger()).build("")
+
+    text = next(s for s in data["steps"] if s["key"] == "secretary")["text"]
+
+    assert text.count(guide) == 1
+    assert text.find(guide) < text.find("步骤二_判断是否可以主动介入")
+
+
+def test_focus_scope_placeholder_fully_replaced(store):
+    """挪位置后不能残留未替换的占位符。"""
+    cm = ConfigManager(make_config())
+    cm.attach_profile_store(store)
+    data = PromptPreviewBuilder(cm.for_template(""), FakeLedger(), WorkLedger()).build("")
+
+    text = next(s for s in data["steps"] if s["key"] == "secretary")["text"]
+    assert "{reply_strategy_guide}" not in text
