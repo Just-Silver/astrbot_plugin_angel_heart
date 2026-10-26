@@ -5,26 +5,34 @@ All notable changes to this plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## 2.2.10 - 2026-10-27
+## 2.2.11 - 2026-10-27
 
 ### Added
-- `webui`: 「群聊独立配置」页新增「配置 / 预览」双 tab。预览以 5 步垂直时间线展示一次群消息的完整链路（入账 → 防抖 → 秘书判定 → 主脑生成 → 发送），逐步标注是否注入提示词，点开可看真实拼装文本。
-- `webui`: 预览内可直接编辑「助理的身份定位」「助理的关注范围与接话策略」，与配置 tab 共用同一份草稿，改字即时重算，无需先保存。
-- `api`: 新增只读接口 `GET /prompt_preview` 与 `POST /prompt_preview/draft`。拼装复用真实组件（`PromptModuleLoader` / `LLMAnalyzer._build_prompt` / `FrontDesk` 提醒构造 / `WorkLedger`），不发请求、不写账本、不改状态。
+- `webui`: 「群聊独立配置」页新增「配置 / 提示词」双 tab。「提示词」页以 5 步垂直时间线展示一次群消息的完整链路（入账 → 防抖 → 秘书判定 → 主脑生成 → 发送），逐步标注是否注入提示词，点开可看真实拼装文本。
+- `webui`: 「提示词」页内可直接编辑「助理的身份定位」「助理的关注范围与接话策略」，与配置 tab 共用同一份草稿，改字即时重算，无需先保存。配置 tab 不再重复渲染这两项，避免两个入口。
+- `webui`: 多个步骤的展开内容可同时打开，互不排斥。
 - `webui`: 主题跟随宿主 AstrBot。优先读 iframe 的 `?theme=` 参数，其次订阅插件页桥接的 `onContext` 实时跟随明暗切换；无宿主时退回页面自身持久化，嵌入模式下隐藏页面内切换按钮。
+- `api`: 新增只读接口 `GET /prompt_preview` 与 `POST /prompt_preview/draft`。拼装复用真实组件（`PromptModuleLoader` / `LLMAnalyzer._build_prompt` / `FrontDesk` 提醒构造 / `WorkLedger`），不发请求、不写账本、不改状态。
 - `ci`: 新增 GitHub Actions 质量门禁，分支推送与 PR 自动跑静态检查、字节码编译、单元测试与前端构建。
 - `ci`: 新增 tag 驱动的发布流水线，复用 CI 的检查作为前置条件；强制「先在分支发 beta、验证通过后合并 master 发正式版」，并校验 tag、`metadata.yaml`、`CHANGELOG.md` 三处版本一致。
 - `docs`: 新增 `docs/architecture/prompt_layers.md`，固定秘书/主脑两套提示词的分层、可变槽位与写死内容的分界。
 
 ### Changed
 - `style`: 规则集对齐 AstrBot 主项目并清理全部存量告警、统一代码格式；运行行为未变。
-- 预览组件全部使用主题变量（`--text-1/2/3`、`--accent`、`--glass-*`），不再硬编码色值，暗色模式下不再出现深底深字。
+- 「提示词」页的展开内容与来源标签改用页面正文字体，不再使用等宽字体；颜色全部走主题变量（`--text-1/2/3`、`--accent`、`--glass-*`），暗色模式下不再出现深底深字。
 
 ### Fixed
 - **在场巡检被提示词自我否决**：`prompts/modules/behavior_rules.md` 的「绝对不参与任何未提及我的话题」把秘书唯一被调用的场景（在场期间别人聊别的事）整个否定，导致进场后主动接话率极低。改为按「话题相关性 + 是否真有价值」判断，保留「没价值就沉默」的边界，去掉与在场语义冲突的绝对否定；敏感话题规避维持原状。
+- **仅 @ 无正文卡住同会话（上游 #79）**：秘书判定回复后放行主脑，但核心在 `message_str` 为空且无媒体/引用组件时直接跳过 Agent，既不请求 LLM 也不触发发送回调，已登记的 `running` 工作无人收口，`assistant_busy` 门闩持续拦截同会话后续 @，直到 `running_timeout(300s)` 兜底。放行前把 At 组件的显示名补回 `event.message_str`（无显示名时用 `@QQ号`），只改 `message_str`，原始组件链与账本内容不变。
+- **摘要消息角色统一为用户（上游 #82）**：摘要消息此前是 `system` 角色，与「扫描用户消息」的判断口径冲突。统一为 `user`，并让状态扫描与复读检测显式排除摘要消息（按 `kind` 判断），避免摘要被当成群友发言。
+- **群聊图片被整理折叠后丢失（上游 #78）**：上下文整理折叠图片消息时，摘要正文补上该图片的本地缓存路径，并让摘要消息持有这些路径的引用，避免文件被当作无主缓存清理；摘要再次被整理时引用继续继承。
+- **运行中请求的图片被清理导致工具续轮 400（上游 #83）**：会话仍在调度中（防抖记录、秘书单飞、运行中的工作任一存在）时只登记待清理、不删文件，等调度收口后再补做清理。
 - **`is_reasoning_model` 缺键时默认值与 schema 不一致**：`_conf_schema.json` 声明默认 `true`，但 `ConfigManager` 缺键时返回 `False`，配置迁移或手改配置后会静默切到「思维链版」提示词（多耗 token、JSON 更难解析）。已对齐为 `true`。
-- **预览草稿改不动顶层配置**：`analyzer_model` / `is_reasoning_model` 等顶层键绕过覆盖层，导致在预览里改「只输出 JSON」看不到变化。新增 `_get_top_level()`，顶层键同样让位给草稿覆盖。
-- **预览不得伪造数据**：无真实对话时只输出 `<群友甲>` / `<已回应消息占位>` 这类占位标记，不再生成虚构人名与对话内容。
+- **提示词页草稿改不动顶层配置**：`analyzer_model` / `is_reasoning_model` 等顶层键绕过覆盖层，导致在该页改「只输出 JSON」看不到变化。新增 `_get_top_level()`，顶层键同样让位给草稿覆盖。
+- **提示词页不得伪造数据**：无真实对话时只输出 `<群友甲>` / `<已回应消息占位>` 这类占位标记，不再生成虚构人名与对话内容。
+
+### 同步自上游
+本版包含上游 2.2.9 / 2.2.10 的四处修复（#78 / #79 / #82 / #83），因本 fork 已深度重构相关文件，改为按语义手工移植并补齐对应测试，未直接合并提交。
 
 ## 2.2.6 - 2026-09-04
 
