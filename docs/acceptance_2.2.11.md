@@ -58,9 +58,19 @@ docker logs <容器名> --since 5m 2>&1 | grep "漏传"
 
 期望：无输出。
 
-## 三、接话率（本轮核心）
+## 三、接话率（本轮核心）✅ 已通过
 
-**观察位置**：「联系人监控」里每个群的「最近决策」行，或直接读 `last_decisions.json`。
+**判据：关注范围内的接，范围外的不接。**
+
+实测记录（beta.4 → beta.5）：
+
+| 时机 | 消息 | 是否在关注范围 | 决策 | 结论 |
+| --- | --- | --- | --- | --- |
+| beta.4 | 今天好热啊 | 否 | reply | ❌ 认了「不是关注范围」仍用「氛围调节」接了 |
+| beta.5 | 我今天买了个电饭煲 | 否 | no_reply | ✅ 推理中明确「not in关注范围. No point」 |
+| beta.5 | 谁懂 Python 的异步 | 是（编程） | reply | ✅ 正确接入并给了技术解答 |
+
+**观察方式**：「联系人监控」里每个群的「最近决策」行，或读 `last_decisions.json`。
 
 ```bash
 docker exec <容器名> cat /AstrBot/data/plugin_data/astrbot_plugin_angel_heart/last_decisions.json
@@ -71,14 +81,8 @@ docker exec <容器名> cat /AstrBot/data/plugin_data/astrbot_plugin_angel_heart
 1. 先让群里聊一段**助理关心的话题**（游戏/动漫/技术/投资等，按你的配置）→ 去看决策
 2. 再让群里聊一段**无关话题** → 再去看决策
 
-- [ ] 相关话题那次：`should_reply: true`
-- [ ] 无关话题那次：`should_reply: false`
-
-| 结果 | 结论 |
-| --- | --- |
-| 相关接、无关不接 | ✅ 改动生效 |
-| 两次都不接 | ⚠ 可能被「仅点名入场」拦住，见下 |
-| 两次都接 | ❌ 放太宽了，需回调 `behavior_rules.md` |
+- [x] 相关话题那次：`should_reply: true`
+- [x] 无关话题那次：`should_reply: false`
 
 > 若两次都不接，先去 点名与交互 确认 `仅点名入场` 是开还是关：
 > 开启时，离场状态下的普通消息**根本不会进秘书**，自然看不到决策变化。
