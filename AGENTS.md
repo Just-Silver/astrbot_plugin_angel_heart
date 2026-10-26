@@ -195,6 +195,7 @@ git fetch upstream --tags && python scripts/check_upstream.py
 
 - 流程与改动禁区见 [`docs/upstream_sync.md`](docs/upstream_sync.md)。
 - 修改 `roles/front_desk.py`、`core/conversation_ledger.py`、`core/angel_heart_status.py`、`main.py` 前先读该文档——这几个文件上游也在频繁改，改动越大同步成本越高。
+- 发现的待办与待决策事项登记在 [`docs/TODO.md`](docs/TODO.md)，不要只留在对话里。
 
 ## 调试与监控
 
