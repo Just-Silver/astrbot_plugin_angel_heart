@@ -174,6 +174,14 @@ angel_context.proactive_manager.register_custom_trigger("my_trigger", custom_tri
 
 提示词分层、可变槽位与写死内容的分界见 [`docs/architecture/prompt_layers.md`](docs/architecture/prompt_layers.md)。
 
+## 上游同步
+
+本 fork 不合并回上游，但持续吸收上游的 bug 修复：上游有真实用户群，是免费的 QA 通道。
+
+- 流程与改动禁区见 [`docs/upstream_sync.md`](docs/upstream_sync.md)。
+- 检查有无新提交：`python scripts/check_upstream.py`（只读，会标出高冲突面文件与需一并移植的测试）。
+- 修改 `roles/front_desk.py`、`core/conversation_ledger.py`、`core/angel_heart_status.py`、`main.py` 前先读该文档——这几个文件上游也在频繁改，改动越大同步成本越高。
+
 ## 调试与监控
 
 ### 日志系统
