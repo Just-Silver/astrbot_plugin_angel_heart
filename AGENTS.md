@@ -174,6 +174,10 @@ angel_context.proactive_manager.register_custom_trigger("my_trigger", custom_tri
 
 提示词分层、可变槽位与写死内容的分界见 [`docs/architecture/prompt_layers.md`](docs/architecture/prompt_layers.md)。
 
+### 会话与请求归属
+
+讨论「谁生成回复」「上下文谁拼的」「为什么缓存能命中」「秘书能不能看图」之前，先读 [`docs/architecture/llm_request_ownership.md`](docs/architecture/llm_request_ownership.md)。要点：插件不生成回复，只改写 AstrBot 核心的请求体；事件一旦放行就必然回复。
+
 ## 上游同步
 
 本 fork 不合并回上游，但持续吸收上游的 bug 修复：上游有真实用户群，是免费的 QA 通道。
