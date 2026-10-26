@@ -19,23 +19,36 @@
 
 **根因**
 
-`web_api/prompt_preview.py` 的 `_render_secretary()` 里每次调用都 new 一个加载器：
+`PromptModuleLoader.__init__` 会立即读取 7 个文件并打 DEBUG。任何 `new PromptModuleLoader()`
+都会产生 8 行日志。目前有三个来源：
 
-```python
-analyzer.prompt_loader = PromptModuleLoader()   # 每次重读 7 个文件
-```
+| 来源 | 位置 | 触发时机 | 频率 |
+| --- | --- | --- | --- |
+| 提示词页预览 | `web_api/prompt_preview.py` `_render_secretary()` 每次 `PromptModuleLoader()` | 切 tab、改字重算 | **高，每改一次字 8 行** |
+| 配置保存 | `main.py:264/280` → `LLMAnalyzer.reload_config()` → `prompt_loader.reload_modules()` | WebUI 保存配置 | 低，可接受 |
+| 插件启动 | `core/llm_analyzer.py:76` | 启动一次 | 一次性 |
+
+其中只有**第一项**是需要修的用法错误：预览只是只读渲染，不该重建加载器。
 
 **修法**
 
-模块级单例，复用其内存缓存：
+提示词页改为复用模块级单例：
 
 ```python
-_PREVIEW_LOADER = PromptModuleLoader()
+_PREVIEW_LOADER = PromptModuleLoader()   # 进程内只读一次 7 个文件
 ```
 
 **影响面**：仅 `web_api/prompt_preview.py`，不涉及运行期链路。
 
-**顺带**：`PromptModuleLoader` 只在 `__init__` 和 `reload_config` 时加载，本身已是「加载一次」的设计，预览侧重复 new 属于用法错误。
+**顺带**：`PromptModuleLoader` 本身已是「加载一次 + 显式 reload」的设计（只在 `__init__`
+和 `reload_modules()` 读盘），预览侧每次 new 属于用法错误，不是设计缺陷。
+
+**未决疑点**
+
+实测日志出现相邻 0.6 秒的两次模板重建（`02:35:30.423`、`02:35:31.010`），
+且时间点紧邻群消息巡检（`02:35:27`）。正常巡检不应重建模板，
+需确认当时是否同时打开了提示词页并触发了两次草稿重算；若确认与群消息相关，
+说明还有未定位的重建路径。
 
 ## 待验收
 
