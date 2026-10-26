@@ -58,7 +58,7 @@
           v-for="(step, index) in data.steps"
           :key="step.key"
           class="pv-step"
-          :class="{ muted: !step.injected, open: openKey === step.key }"
+          :class="{ muted: !step.injected, open: isOpen(step.key) }"
         >
           <div class="pv-dot" />
           <div class="pv-step-body">
@@ -75,10 +75,10 @@
 
             <div v-else class="pv-expand">
               <div class="pv-expand-bar" @click="toggle(step)">
-                <span>{{ openKey === step.key ? '收起' : '展开内容' }}</span>
+                <span>{{ isOpen(step.key) ? '收起' : '展开内容' }}</span>
                 <span class="pv-count">{{ charCount(step.text) }} 字符</span>
               </div>
-              <pre v-if="openKey === step.key" class="pv-code">{{ step.text }}</pre>
+              <pre v-if="isOpen(step.key)" class="pv-code">{{ step.text }}</pre>
             </div>
           </div>
         </div>
@@ -131,7 +131,8 @@ const message = useMessage()
 
 const data = ref<PreviewData | null>(null)
 const loading = ref(false)
-const openKey = ref('secretary')
+// 展开状态按 step.key 独立记录，多个节点可同时展开
+const openKeys = ref<Set<string>>(new Set(['secretary']))
 // 默认选中第一个有对话记录的群聊：预览的意义就是看真实数据，不能默认落在占位模式
 const chatId = ref<string>(firstChatWithData())
 
@@ -166,8 +167,16 @@ function charCount(text: string): string {
   return String((text || '').length).toLocaleString()
 }
 
+function isOpen(key: string): boolean {
+  return openKeys.value.has(key)
+}
+
 function toggle(step: PreviewStep) {
-  openKey.value = openKey.value === step.key ? '' : step.key
+  // Set 是浅比较，必须换新实例才能触发视图更新
+  const next = new Set(openKeys.value)
+  if (next.has(step.key)) next.delete(step.key)
+  else next.add(step.key)
+  openKeys.value = next
 }
 
 function resetPersonality() {
@@ -334,7 +343,6 @@ onMounted(() => {
 .pv-source {
   font-size: 11px;
   color: var(--text-3);
-  font-family: ui-monospace, monospace;
 }
 .pv-step-desc {
   font-size: 12px;
@@ -369,9 +377,9 @@ onMounted(() => {
 .pv-code {
   margin: 0;
   padding: 11px 12px;
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  line-height: 1.7;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.75;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 420px;
@@ -385,7 +393,7 @@ onMounted(() => {
     width: 100%;
   }
   .pv-code {
-    font-size: 10.5px;
+    font-size: 12px;
   }
 }
 </style>

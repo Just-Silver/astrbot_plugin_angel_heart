@@ -151,10 +151,11 @@
               :schema="settingsSchema"
               v-model:model-value="settingsValues"
               :providers="settingsProviders"
+              :exclude="personalityGroupKeys"
             />
             <n-spin v-else style="margin-top: 40px" />
           </n-tab-pane>
-          <n-tab-pane name="preview" tab="预览">
+          <n-tab-pane name="preview" tab="提示词">
             <PreviewPane
               v-if="settingsLoaded"
               :model="settingsValues"
@@ -179,10 +180,11 @@
               v-model:model-value="configModel"
               :schema="templateSchema"
               :providers="settingsProviders"
+              :exclude="personalityGroupKeys"
             />
             <n-spin v-else style="margin-top: 40px" />
           </n-tab-pane>
-          <n-tab-pane name="preview" tab="预览">
+          <n-tab-pane name="preview" tab="提示词">
             <PreviewPane
               v-if="settingsLoaded"
               :model="configModel"
@@ -513,6 +515,9 @@ function saveCurrent() {
   if (selectedId.value) void saveTemplate()
   else void savePluginConfig()
 }
+
+// 「助理画像」只在提示词 tab 里编辑，配置页不再重复渲染同一组字段
+const personalityGroupKeys = ['personality']
 
 // 模板编辑用 schema：从全局 schema 按 fields.ts 的精选分组裁剪出子集
 const templateSchema = computed<Record<string, SchemaMeta>>(() => {
