@@ -9,6 +9,22 @@ from __future__ import annotations
 import time
 from typing import Any
 
+# 预览侧共享的模块加载器：PromptModuleLoader 每次构造都会重读 7 个文件并打
+# 8 行 DEBUG，预览是高频只读操作，必须复用同一实例。运行期仍由 LLMAnalyzer
+# 自己持有加载器，配置保存时走 reload_modules 刷新。
+_PREVIEW_LOADER = None
+
+
+def _get_preview_loader():
+    """懒加载单例，避免模块导入期就读盘。"""
+    global _PREVIEW_LOADER
+    if _PREVIEW_LOADER is None:
+        from ..core.prompt_module_loader import PromptModuleLoader
+
+        _PREVIEW_LOADER = PromptModuleLoader()
+    return _PREVIEW_LOADER
+
+
 try:
     from astrbot.api import logger
 except ImportError:
@@ -152,9 +168,7 @@ class PromptPreviewBuilder:
         from ..core.llm_analyzer import LLMAnalyzer
 
         analyzer = LLMAnalyzer.__new__(LLMAnalyzer)
-        from ..core.prompt_module_loader import PromptModuleLoader
-
-        analyzer.prompt_loader = PromptModuleLoader()
+        analyzer.prompt_loader = _get_preview_loader()
         analyzer.config_manager = self.config_manager
         analyzer.analyzer_model_name = ""
         analyzer.strategy_guide = ""

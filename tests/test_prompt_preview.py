@@ -296,3 +296,33 @@ def test_preview_uses_real_chat_id_for_secretary(store):
     data = PromptPreviewBuilder(cm.for_template(""), FakeLedger(), WorkLedger()).build("aiocqhttp:GroupMessage:1")
 
     assert data["meta"]["chat_id"] == "aiocqhttp:GroupMessage:1"
+
+
+def test_preview_reuses_prompt_loader(store):
+    """预览必须复用同一加载器：每次 new 都会重读 7 个文件并刷 8 行 DEBUG。
+
+    AstrBot 控制台环形缓冲只有 500 条，高频重算会把真正要看的日志挤掉。
+    """
+    from astrbot_plugin_angel_heart.core.prompt_module_loader import PromptModuleLoader
+    from astrbot_plugin_angel_heart.web_api import prompt_preview
+
+    created = {"n": 0}
+    original_init = PromptModuleLoader.__init__
+
+    def counting_init(self):
+        created["n"] += 1
+        original_init(self)
+
+    PromptModuleLoader.__init__ = counting_init
+    try:
+        prompt_preview._PREVIEW_LOADER = None
+        cm = ConfigManager(make_config())
+        cm.attach_profile_store(store)
+
+        for _ in range(5):
+            PromptPreviewBuilder(cm.for_template(""), FakeLedger(), WorkLedger()).build("")
+
+        assert created["n"] == 1
+    finally:
+        PromptModuleLoader.__init__ = original_init
+        prompt_preview._PREVIEW_LOADER = None
