@@ -5,6 +5,16 @@ All notable changes to this plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 2.2.12 - 2026-10-27
+
+### Fixed
+- **离场应答不再被「仅点名入场」静默锁死**：`FrontDesk._schedule_group_debounce` 此前把复读/热聊检测放在「未点名且不允许无点名入场」这一支里，导致 `enter_on_mention_only=False` 时 `get_leave_reply_trigger()` 一次都不会被调用——开关看着是开的，实际永不生效。离场应答改为「离场且未被点名」即检测，与入场策略解耦；命中应答时按约定保持离场，不会顺带把助理拉进场。
+- **热聊不再被助理自己的发言凑满人数**：`_detect_dense_conversation` 此前不区分角色，把 assistant 回复与摘要占位一并计入消息数和参与人数。实测 4 位群友 + 若干 assistant 消息即可误判成立。现只统计群友发言，空 `sender_id` 也不再计入参与人数。
+- **阈值被写成 0 时回退默认值**：`echo_detection_threshold` / `echo_detection_window` / `dense_conversation_threshold` / `dense_conversation_window` / `min_participant_count` / `familiarity_cooldown_duration` 读到非正数时按默认值处理。此前 0 秒统计窗口让复读永远不成立、0 条阈值又让热聊恒真。
+
+### Fixed（WebUI）
+- **群聊模板不再把未填字段写死成 `false` / `0`**：`ChatConfigPanel.selectTemplate` 此前用 `?? defaultFor(type)` 给缺失字段补 `false`/`0`，保存时整份回写，等于把「没配过」变成「显式关闭/归零」，并覆盖掉全局配置。典型后果是新建模板后「仅点名入场」被静默关成 `false`。现在只保留模板里真实存在的字段，未填字段在界面上按 schema 默认值展示（`SchemaForm.shownIn`），用户不动它就不会写进模板。
+
 ## 2.2.11 - 2026-10-27
 
 ### Added

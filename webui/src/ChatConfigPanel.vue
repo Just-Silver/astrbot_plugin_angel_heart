@@ -424,24 +424,22 @@ const settingsDirty = computed(
 )
 
 // 全局配置可编辑：首次切到全局配置视图时加载 schema + 当前值
-function loadPluginConfig() {
+async function loadPluginConfig(): Promise<void> {
   if (settingsLoaded.value) return
-  void (async () => {
-    try {
-      const data = await apiGet<{
-        schema: Record<string, SchemaMeta>
-        values: Record<string, unknown>
-        providers: Record<string, string[]>
-      }>('plugin_config')
-      settingsSchema.value = data?.schema || {}
-      settingsValues.value = data?.values || {}
-      settingsProviders.value = data?.providers || {}
-      settingsBaseline.value = JSON.stringify(settingsValues.value)
-      settingsLoaded.value = true
-    } catch (e) {
-      message.error(`加载插件设置失败: ${(e as Error).message}`)
-    }
-  })()
+  try {
+    const data = await apiGet<{
+      schema: Record<string, SchemaMeta>
+      values: Record<string, unknown>
+      providers: Record<string, string[]>
+    }>('plugin_config')
+    settingsSchema.value = data?.schema || {}
+    settingsValues.value = data?.values || {}
+    settingsProviders.value = data?.providers || {}
+    settingsBaseline.value = JSON.stringify(settingsValues.value)
+    settingsLoaded.value = true
+  } catch (e) {
+    message.error(`加载插件设置失败: ${(e as Error).message}`)
+  }
 }
 
 async function savePluginConfig() {
@@ -481,21 +479,19 @@ function decisionTime(ts: number): string {
 function selectTemplate(id: string | null) {
   viewMode.value = 'config'
   selectedId.value = id
-  if (!id) {
-    // 全局配置视图：懒加载可编辑数据源
-    loadPluginConfig()
-    return
-  }
+  // 模板控件的未填字段要按 schema 默认值展示，先确保 schema 已加载
+  void loadPluginConfig()
+  if (!id) return
   const tpl = templates.value.find((t) => t.id === id)
   if (!tpl) return
-  // 初始化编辑模型：按组补全缺失字段
+  // 初始化编辑模型：只保留模板里真实存在的字段。
+  // 缺失字段不补 false/0——那样会把「没配过」写成「显式关闭/归零」，
+  // 覆盖掉全局配置与 schema 默认值（曾导致「仅点名入场」被静默关成 false）。
+  // 展示层的默认值由 SchemaForm 按 schema 兜底。
   const model: Record<string, Record<string, unknown>> = {}
   for (const group of GROUPS) {
-    model[group.key] = {}
-    for (const field of group.fields) {
-      model[group.key][field.key] =
-        tpl.config?.[group.key]?.[field.key] ?? defaultFor(field.type)
-    }
+    const saved = tpl.config?.[group.key]
+    model[group.key] = saved && typeof saved === 'object' ? { ...saved } : {}
   }
   configModel.value = model
   templateBaseline.value = JSON.stringify(model)
@@ -534,12 +530,6 @@ const templateSchema = computed<Record<string, SchemaMeta>>(() => {
   }
   return out
 })
-
-function defaultFor(type: string): unknown {
-  if (type === 'bool') return false
-  if (type === 'number') return 0
-  return ''
-}
 
 function openCreateModal() {
   createForm.name = ''

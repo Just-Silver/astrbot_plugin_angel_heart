@@ -561,11 +561,17 @@ class FrontDesk:
         is_wake = self.status_checker.is_event_wake(event)
         is_present = self.context.is_present(chat_id)
         cm = self.config_manager.for_chat(chat_id)
-        # 入场门槛：开启「仅点名入场」时只有点名消息能进场；关闭时任何消息都进场处理
-        can_enter = is_wake or not cm.enter_on_mention_only
+
+        # 离场应答：离场且未被点名时检测。它是一次性应答，不该由「是否允许无点名入场」
+        # 决定是否检查——那样关闭「仅点名入场」后复读/热聊检测根本不会被调用，
+        # 开关看着是开的却永远不会生效。
         leave_reply_trigger = ""
-        if not can_enter and not is_present:
+        if not is_present and not is_wake:
             leave_reply_trigger = self.status_checker.get_leave_reply_trigger(chat_id)
+
+        # 入场门槛：开启「仅点名入场」时只有点名消息能进场；关闭时任何消息都进场处理。
+        # 命中离场应答时不进场：它按约定只回一次并保持离场。
+        can_enter = is_wake or (not cm.enter_on_mention_only and not leave_reply_trigger)
 
         # 离场进场：先标记进场，再进入助理防抖
         if can_enter and not is_present:
