@@ -30,7 +30,7 @@
             <!-- provider 下拉：显式标记或 *_provider_id 且有可选数据 -->
             <n-select
               v-if="isProviderSelect(row.meta, row.path)"
-              :value="asString(getIn(row.path))"
+              :value="asString(shownIn(row.path))"
               :options="providerOptions(row.path)"
               clearable
               placeholder="选择模型提供商"
@@ -63,38 +63,38 @@
             </n-dynamic-input>
             <n-switch
               v-else-if="row.meta.type === 'bool'"
-              :value="!!getIn(row.path)"
+              :value="!!shownIn(row.path)"
               @update:value="(v: unknown) => setIn(row.path, v)"
             />
             <n-input-number
               v-else-if="row.meta.type === 'int'"
-              :value="asNumber(getIn(row.path))"
+              :value="asNumber(shownIn(row.path))"
               :precision="0"
               class="control-number"
               @update:value="(v: unknown) => setIn(row.path, v)"
             />
             <n-input-number
               v-else-if="row.meta.type === 'float'"
-              :value="asNumber(getIn(row.path))"
+              :value="asNumber(shownIn(row.path))"
               :step="0.1"
               class="control-number"
               @update:value="(v: unknown) => setIn(row.path, v)"
             />
             <n-dynamic-tags
               v-else-if="row.meta.type === 'list'"
-              :value="asList(getIn(row.path))"
+              :value="asList(shownIn(row.path))"
               @update:value="(v: unknown) => setIn(row.path, v)"
             />
             <n-input
               v-else-if="row.meta.type === 'text'"
-              :value="asString(getIn(row.path))"
+              :value="asString(shownIn(row.path))"
               type="textarea"
               :rows="3"
               @update:value="(v: unknown) => setIn(row.path, v)"
             />
             <n-input
               v-else
-              :value="asString(getIn(row.path))"
+              :value="asString(shownIn(row.path))"
               class="control-text"
               @update:value="(v: unknown) => setIn(row.path, v)"
             />
@@ -250,6 +250,16 @@ function getIn(path: string[]): unknown {
     else return undefined
   }
   return cur
+}
+
+/** 模型里没有该字段时，控件按 schema 默认值展示，但不写进模型。 */
+function shownIn(path: string[]): unknown {
+  const value = getIn(path)
+  if (value !== undefined && value !== null) return value
+  const key = path[path.length - 1]
+  const group = path.length > 1 ? path[0] : ''
+  const meta = group ? props.schema?.[group]?.items?.[key] : props.schema?.[key]
+  return meta?.default
 }
 
 function setIn(path: string[], value: unknown) {

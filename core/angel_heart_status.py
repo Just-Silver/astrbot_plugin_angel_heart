@@ -412,9 +412,15 @@ class StatusChecker:
             participant_set = set()
 
             for msg in all_messages:
+                # 只统计群友发言：assistant 回复与摘要占位不是「多人热聊」的证据，
+                # 计入会让参与人数虚高，把 4 人闲聊误判成多人热聊。
+                if msg.get("role") != "user" or _is_summary_message(msg):
+                    continue
                 if msg.get("timestamp", 0) > cutoff_time:
                     message_count += 1
-                    participant_set.add(msg.get("sender_id", ""))
+                    sender_id = str(msg.get("sender_id", "") or "").strip()
+                    if sender_id:
+                        participant_set.add(sender_id)
 
             # 早期退出优化
             if message_count < message_threshold:

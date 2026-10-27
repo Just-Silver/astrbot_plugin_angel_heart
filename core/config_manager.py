@@ -254,27 +254,40 @@ class ConfigManager:
 
     @property
     def echo_detection_threshold(self) -> int:
-        return self._get_grouped("leave_reply", "echo_detection_threshold", 3)
+        return self._get_positive_int("leave_reply", "echo_detection_threshold", 3)
 
     @property
     def echo_detection_window(self) -> int:
-        return self._get_grouped("leave_reply", "echo_detection_window", 30)
+        return self._get_positive_int("leave_reply", "echo_detection_window", 30)
 
     @property
     def dense_conversation_threshold(self) -> int:
-        return self._get_grouped("leave_reply", "dense_conversation_threshold", 30)
+        return self._get_positive_int("leave_reply", "dense_conversation_threshold", 30)
 
     @property
     def dense_conversation_window(self) -> int:
-        return self._get_grouped("leave_reply", "dense_conversation_window", 600)
+        return self._get_positive_int("leave_reply", "dense_conversation_window", 600)
 
     @property
     def min_participant_count(self) -> int:
-        return self._get_grouped("leave_reply", "min_participant_count", 5)
+        return self._get_positive_int("leave_reply", "min_participant_count", 5)
 
     @property
     def leave_reply_cooldown_duration(self) -> int:
-        return self._get_grouped("leave_reply", "familiarity_cooldown_duration", 1800)
+        return self._get_positive_int("leave_reply", "familiarity_cooldown_duration", 1800)
+
+    def _get_positive_int(self, group: str, key: str, default: int) -> int:
+        """读取正整数字段；非正数（含 0 / 负数 / 非数字）回退默认值。
+
+        旧版 WebUI 保存模板时会把未填字段补成 0 写死，0 秒窗口会让统计永远为空、
+        0 条阈值则恒真。这里统一按「没配过」处理，让坏模板回到默认行为。
+        """
+        raw = self._get_grouped(group, key, default)
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return value if value > 0 else default
 
     # ========== wake_interaction ==========
 
